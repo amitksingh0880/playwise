@@ -1,0 +1,19 @@
+{
+  "name": "playwise",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\" \"npm run dev:extension\"",
+    "dev:server": "cd server && bun run dev",
+    "dev:web": "cd web && npm run dev",
+    "dev:extension": "cd extension && npm run watch",
+    "build": "npm run build:server && npm run build:web && npm run build:extension",
+    "build:server": "cd server && npm run build",
+    "build:web": "cd web && npm run build",
+    "build:extension": "cd extension && npm run build",
+    "install:all": "concurrently \"cd server && bun install\" \"cd web && npm install\" \"cd extension && npm install\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
