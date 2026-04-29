@@ -85,6 +85,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
     }
   }, [videoState.sourceType, isHost, videoState.sourceUrl]);
 
+  // Periodic sync from host
+  useEffect(() => {
+    if (!isHost) return;
+
+    const interval = setInterval(() => {
+      if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+        const currentTime = playerRef.current.getCurrentTime();
+        onSync({ currentTime, isPlaying: playerRef.current.getPlayerState() === 1 });
+      } else if (videoState.sourceType !== 'youtube' && videoRef.current) {
+        onSync({ currentTime: videoRef.current.currentTime, isPlaying: !videoRef.current.paused });
+      }
+    }, 3000); // Sync every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [isHost, videoState.sourceType, onSync]);
+
   // Sync YouTube player when videoState changes
   useEffect(() => {
     if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.seekTo === 'function') {

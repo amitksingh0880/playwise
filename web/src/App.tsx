@@ -202,9 +202,21 @@ function App() {
       </motion.div>
 
       {/* Main Content */}
-      <Flex flexGrow="1" overflow="hidden" style={{ position: 'relative' }}>
+      <Flex 
+        flexGrow="1" 
+        overflow="hidden" 
+        style={{ position: 'relative' }}
+        direction={{ initial: 'column', md: 'row' }}
+      >
         {/* Video Area */}
-        <Box flexGrow="1" style={{ position: 'relative', overflow: 'hidden' }}>
+        <Box 
+          flexGrow="1" 
+          style={{ 
+            position: 'relative', 
+            overflow: 'hidden',
+            minHeight: sidebarHidden ? '100vh' : '50vh'
+          }}
+        >
           <VideoPlayer onSync={handleSync} />
           
           {/* Controls Overlay */}
@@ -278,11 +290,14 @@ function App() {
         {/* Sidebar */}
         <Box 
           style={{ 
-            width: sidebarHidden ? 0 : 400, 
+            width: sidebarHidden ? 0 : '100%',
+            maxWidth: sidebarHidden ? 0 : (window.innerWidth < 768 ? '100%' : '400px'),
+            height: sidebarHidden ? 0 : (window.innerWidth < 768 ? 'auto' : '100%'),
             opacity: sidebarHidden ? 0 : 1,
             transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
             backgroundColor: 'var(--gray-1)',
             borderLeft: sidebarHidden ? 'none' : '1px solid var(--gray-a4)',
+            borderTop: sidebarHidden ? 'none' : (window.innerWidth < 768 ? '1px solid var(--gray-a4)' : 'none'),
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column'

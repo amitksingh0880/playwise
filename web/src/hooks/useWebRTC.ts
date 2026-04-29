@@ -14,7 +14,9 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const initLocalStream = async () => {
     if (localStream.current) return localStream.current;
     try {
+      console.log('Requesting media devices...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      console.log('Media stream captured successfully');
       localStream.current = stream;
       setStreams((prev) => ({ ...prev, [userId!]: stream }));
       return stream;
@@ -75,14 +77,14 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       }
     };
 
-    window.addEventListener('webrtc-webrtc-offer', handleOffer as any);
-    window.addEventListener('webrtc-webrtc-answer', handleAnswer as any);
-    window.addEventListener('webrtc-webrtc-ice', handleIce as any);
+    window.addEventListener('webrtc-offer', handleOffer as any);
+    window.addEventListener('webrtc-answer', handleAnswer as any);
+    window.addEventListener('webrtc-ice', handleIce as any);
 
     return () => {
-      window.removeEventListener('webrtc-webrtc-offer', handleOffer as any);
-      window.removeEventListener('webrtc-webrtc-answer', handleAnswer as any);
-      window.removeEventListener('webrtc-webrtc-ice', handleIce as any);
+      window.removeEventListener('webrtc-offer', handleOffer as any);
+      window.removeEventListener('webrtc-answer', handleAnswer as any);
+      window.removeEventListener('webrtc-ice', handleIce as any);
     };
   }, [createPeerConnection, sendSignal]);
 

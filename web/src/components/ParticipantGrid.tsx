@@ -8,10 +8,10 @@ interface ParticipantGridProps {
 }
 
 export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => {
-  const { users } = useRoomStore();
+  const { users, userId } = useRoomStore();
 
   return (
-    <Grid columns="2" gap="3">
+    <Grid columns={{ initial: '1', sm: '2' }} gap="3">
       <AnimatePresence>
         {users.map((user, index) => (
           <motion.div
@@ -31,7 +31,7 @@ export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => 
             }}>
               <AspectRatio ratio={16 / 9}>
                 {streams[user.id] ? (
-                  <VideoFeed stream={streams[user.id]} isLocal={false} />
+                  <VideoFeed stream={streams[user.id]} isLocal={user.id === userId} />
                 ) : (
                   <Box 
                     width="100%" 

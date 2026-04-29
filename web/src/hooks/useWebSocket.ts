@@ -22,9 +22,9 @@ export function useWebSocket() {
       case 'chat':
         window.dispatchEvent(new CustomEvent('playwise-chat', { detail: data.payload }));
         break;
-      case 'webrtc-webrtc-offer':
-      case 'webrtc-webrtc-answer':
-      case 'webrtc-webrtc-ice':
+      case 'webrtc-offer':
+      case 'webrtc-answer':
+      case 'webrtc-ice':
         window.dispatchEvent(new CustomEvent(data.type, { detail: data.payload }));
         break;
     }
