@@ -22,70 +22,82 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
   const showPlaceholder = !videoState.sourceUrl && videoState.sourceType !== 'youtube' && videoState.sourceType !== 'local';
 
+  // YouTube API Initialization
   useEffect(() => {
-    if (videoState.sourceType === 'youtube') {
-      const videoId = getYouTubeId(videoState.sourceUrl || '') || 'dQw4w9WgXcQ'; // Default to a demo video if none provided
+    if (videoState.sourceType !== 'youtube') return;
 
-      if (!(window as any).YT) {
-        const tag = document.createElement('script');
-        tag.src = 'https://www.youtube.com/iframe_api';
-        const firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    const initPlayer = () => {
+      const videoId = getYouTubeId(videoState.sourceUrl || '') || 'dQw4w9WgXcQ';
+      
+      if (playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
+        const currentId = getYouTubeId(videoState.sourceUrl);
+        if (currentId) playerRef.current.loadVideoById(currentId);
+        return;
       }
 
-      const initPlayer = () => {
-        if (playerRef.current) {
-          if (videoState.sourceUrl) {
-            const currentId = getYouTubeId(videoState.sourceUrl);
-            if (currentId) playerRef.current.loadVideoById(currentId);
-          }
-          return;
+      const playerElement = document.getElementById('yt-player');
+      if (!playerElement) return;
+
+      playerRef.current = new (window as any).YT.Player('yt-player', {
+        videoId: videoId,
+        playerVars: {
+          autoplay: 0,
+          controls: isHost ? 1 : 0,
+          rel: 0,
+          modestbranding: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: (event: any) => {
+            if (!isHost) {
+              event.target.seekTo(videoState.currentTime);
+              if (videoState.isPlaying) event.target.playVideo();
+              else event.target.pauseVideo();
+            }
+          },
+          onStateChange: (event: any) => {
+            if (isHost) {
+              const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
+              onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
+            }
+          },
+        },
+      });
+    };
+
+    if (!(window as any).YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+      (window as any).onYouTubeIframeAPIReady = initPlayer;
+    } else if ((window as any).YT.Player) {
+      initPlayer();
+    } else {
+      // Script is loading but YT.Player not ready
+      const checkInterval = setInterval(() => {
+        if ((window as any).YT && (window as any).YT.Player) {
+          initPlayer();
+          clearInterval(checkInterval);
         }
-
-        playerRef.current = new (window as any).YT.Player('yt-player', {
-          videoId: videoId,
-          playerVars: {
-            autoplay: 0,
-            controls: isHost ? 1 : 0,
-            rel: 0,
-            modestbranding: 1,
-          },
-          events: {
-            onReady: (event: any) => {
-              if (!isHost) {
-                event.target.seekTo(videoState.currentTime);
-                if (videoState.isPlaying) event.target.playVideo();
-                else event.target.pauseVideo();
-              }
-            },
-            onStateChange: (event: any) => {
-              if (isHost) {
-                const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
-                onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
-              }
-            },
-          },
-        });
-      };
-
-      if ((window as any).YT && (window as any).YT.Player) {
-        initPlayer();
-      } else {
-        (window as any).onYouTubeIframeAPIReady = initPlayer;
-      }
+      }, 100);
+      return () => clearInterval(checkInterval);
     }
-  }, [videoState.sourceType, isHost, onSync]);
+  }, [videoState.sourceType, isHost, videoState.sourceUrl]);
 
   // Sync YouTube player when videoState changes
   useEffect(() => {
-    if (videoState.sourceType === 'youtube' && playerRef.current && playerRef.current.seekTo) {
+    if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.seekTo === 'function') {
       if (!isHost) {
-        const drift = Math.abs(playerRef.current.getCurrentTime() - videoState.currentTime);
+        const playerTime = playerRef.current.getCurrentTime();
+        const drift = Math.abs(playerTime - videoState.currentTime);
         if (drift > 1.5) {
           playerRef.current.seekTo(videoState.currentTime);
         }
-        if (videoState.isPlaying) playerRef.current.playVideo();
-        else playerRef.current.pauseVideo();
+        
+        const playerState = playerRef.current.getPlayerState();
+        if (videoState.isPlaying && playerState !== 1) playerRef.current.playVideo();
+        else if (!videoState.isPlaying && playerState === 1) playerRef.current.pauseVideo();
       }
     }
   }, [videoState, isHost]);
@@ -98,7 +110,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         if (drift > 1.5) {
           videoRef.current.currentTime = videoState.currentTime;
         }
-        if (videoState.isPlaying) videoRef.current.play();
+        if (videoState.isPlaying) videoRef.current.play().catch(() => {});
         else videoRef.current.pause();
       }
     }
@@ -124,13 +136,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
               width: 120, 
               height: 120, 
               borderRadius: '50%', 
-              background: 'var(--violet-a3)',
+              background: 'var(--orange-a3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid var(--violet-a4)'
+              border: '2px solid var(--orange-a4)'
             }}>
-              <VideoIcon width={48} height={48} color="var(--violet-9)" />
+              <VideoIcon width={48} height={48} color="var(--orange-9)" />
             </Box>
           </motion.div>
           <Box style={{ textAlign: 'center' }}>
