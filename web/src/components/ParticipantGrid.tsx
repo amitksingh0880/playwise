@@ -10,6 +10,9 @@ interface ParticipantGridProps {
 export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => {
   const { users, userId } = useRoomStore();
 
+  console.log('ParticipantGrid rendering. Users:', users.length, 'Streams keys:', Object.keys(streams));
+  console.log('Current local userId:', userId);
+
   return (
     <Grid columns={{ initial: '1', sm: '2' }} gap="3">
       <AnimatePresence>
@@ -85,6 +88,7 @@ const VideoFeed: React.FC<{ stream: MediaStream; isLocal: boolean }> = ({ stream
   React.useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(err => console.error('Video play error:', err));
     }
   }, [stream]);
 
@@ -98,7 +102,8 @@ const VideoFeed: React.FC<{ stream: MediaStream; isLocal: boolean }> = ({ stream
         width: '100%', 
         height: '100%', 
         objectFit: 'cover',
-        transform: isLocal ? 'scaleX(-1)' : 'none'
+        transform: isLocal ? 'scaleX(-1)' : 'none',
+        backgroundColor: '#1a1a1a'
       }}
     />
   );
