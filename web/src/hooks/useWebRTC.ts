@@ -19,10 +19,17 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       console.log('Media stream captured successfully for userId:', userId);
       localStream.current = stream;
-      setStreams((prev) => {
-        console.log('Updating streams state with local stream for:', userId);
-        return { ...prev, [userId!]: stream };
+      
+      // Update local stream in state
+      setStreams((prev) => ({ ...prev, [userId!]: stream }));
+
+      // Add this stream to all existing peer connections
+      Object.values(peers.current).forEach(pc => {
+        stream.getTracks().forEach(track => {
+          pc.addTrack(track, stream);
+        });
       });
+
       return stream;
     } catch (err) {
       console.error('Error accessing media devices', err);
@@ -43,6 +50,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     };
 
     pc.ontrack = (event) => {
+      console.log('Received remote track from:', targetId);
       setStreams((prev) => ({ ...prev, [targetId]: event.streams[0] }));
     };
 
@@ -58,13 +66,17 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   useEffect(() => {
     const handleOffer = async (e: any) => {
       const { from, offer } = e.detail;
+      console.log('Handling offer from:', from);
       const pc = createPeerConnection(from);
       
       try {
-        const isPolite = userId! < from; // Simple tie-breaker
+        const isPolite = userId! < from;
         const readyForOffer = !makingOffer.current[from] && (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer');
         
-        if (!readyForOffer && !isPolite) return;
+        if (!readyForOffer && !isPolite) {
+          console.log('Not ready for offer and not polite, ignoring');
+          return;
+        }
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
@@ -77,6 +89,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
 
     const handleAnswer = async (e: any) => {
       const { from, answer } = e.detail;
+      console.log('Handling answer from:', from);
       const pc = peers.current[from];
       if (pc && pc.signalingState !== 'stable') {
         try {
@@ -133,6 +146,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       // Initiate offers to users with higher IDs (avoid double-offering)
       users.forEach(async (user) => {
         if (user.id !== userId && !peers.current[user.id] && userId! > user.id) {
+          console.log('Initiating offer to:', user.id);
           const pc = createPeerConnection(user.id);
           try {
             makingOffer.current[user.id] = true;
