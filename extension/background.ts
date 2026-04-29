@@ -1,8 +1,9 @@
+const WS_URL = "wss://playwise-4.onrender.com";
 let socket: WebSocket | null = null;
 let currentRoomId: string | null = null;
 
 function connect() {
-  socket = new WebSocket("ws://localhost:3001");
+  socket = new WebSocket(WS_URL);
 
   socket.onopen = () => {
     console.log("Extension connected to server");

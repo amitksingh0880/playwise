@@ -1,10 +1,11 @@
 "use strict";
 (() => {
   // background.ts
+  var WS_URL = "wss://playwise-4.onrender.com";
   var socket = null;
   var currentRoomId = null;
   function connect() {
-    socket = new WebSocket("ws://localhost:3001");
+    socket = new WebSocket(WS_URL);
     socket.onopen = () => {
       console.log("Extension connected to server");
       if (currentRoomId && socket) {
