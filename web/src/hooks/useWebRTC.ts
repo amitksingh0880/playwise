@@ -10,127 +10,92 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const [streams, setStreams] = useState<Record<string, MediaStream>>({});
   const peers = useRef<Record<string, RTCPeerConnection>>({});
   const localStream = useRef<MediaStream | null>(null);
-  const makingOffer = useRef<Record<string, boolean>>({});
 
-  const initLocalStream = async () => {
+  // 1. Initialize camera
+  const initCamera = useCallback(async () => {
     if (localStream.current) return localStream.current;
     try {
-      console.log('Requesting media devices for userId:', userId);
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      console.log('Media stream captured successfully for userId:', userId);
       localStream.current = stream;
-      
-      // Update local stream in state
-      setStreams((prev) => ({ ...prev, [userId!]: stream }));
-
-      // Add this stream to all existing peer connections
-      Object.values(peers.current).forEach(pc => {
-        stream.getTracks().forEach(track => {
-          pc.addTrack(track, stream);
-        });
-      });
-
+      setStreams(prev => ({ ...prev, [userId!]: stream }));
       return stream;
     } catch (err) {
-      console.error('Error accessing media devices', err);
+      console.error('WebRTC: Camera access denied', err);
       return null;
     }
-  };
+  }, [userId]);
 
-  const createPeerConnection = useCallback((targetId: string) => {
-    if (peers.current[targetId]) return peers.current[targetId];
+  // 2. Create connection to a peer
+  const connectToPeer = useCallback(async (targetId: string, isInitiator: boolean) => {
+    if (peers.current[targetId]) return;
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peers.current[targetId] = pc;
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        sendSignal({ type: 'webrtc-ice', targetId, candidate: event.candidate });
-      }
-    };
-
-    pc.ontrack = (event) => {
-      console.log('Received remote track from:', targetId);
-      setStreams((prev) => ({ ...prev, [targetId]: event.streams[0] }));
-    };
-
+    // Attach local tracks
     if (localStream.current) {
-      localStream.current.getTracks().forEach((track) => {
-        pc.addTrack(track, localStream.current!);
-      });
+      localStream.current.getTracks().forEach(track => pc.addTrack(track, localStream.current!));
     }
 
-    return pc;
-  }, [sendSignal, userId]);
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal({ type: 'webrtc-ice', targetId, candidate: e.candidate });
+    };
 
+    pc.ontrack = (e) => {
+      setStreams(prev => ({ ...prev, [targetId]: e.streams[0] }));
+    };
+
+    if (isInitiator) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendSignal({ type: 'webrtc-offer', targetId, offer });
+    }
+  }, [sendSignal]);
+
+  // 3. Handle incoming signals
   useEffect(() => {
     const handleOffer = async (e: any) => {
       const { from, offer } = e.detail;
-      console.log('Handling offer from:', from);
-      const pc = createPeerConnection(from);
-      
-      try {
-        const isPolite = userId! < from;
-        const readyForOffer = !makingOffer.current[from] && (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer');
-        
-        if (!readyForOffer && !isPolite) {
-          console.log('Not ready for offer and not polite, ignoring');
-          return;
-        }
-
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        sendSignal({ type: 'webrtc-answer', targetId: from, answer });
-      } catch (err) {
-        console.error('Error handling offer', err);
-      }
+      if (!peers.current[from]) await connectToPeer(from, false);
+      const pc = peers.current[from];
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendSignal({ type: 'webrtc-answer', targetId: from, answer });
     };
 
     const handleAnswer = async (e: any) => {
       const { from, answer } = e.detail;
-      console.log('Handling answer from:', from);
       const pc = peers.current[from];
-      if (pc && pc.signalingState !== 'stable') {
-        try {
-          await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (err) {
-          console.error('Error handling answer', err);
-        }
-      }
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
     };
 
     const handleIce = async (e: any) => {
       const { from, candidate } = e.detail;
       const pc = peers.current[from];
-      if (pc) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          // Ignore ICE candidates that arrive before remote description
-        }
-      }
+      if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
     };
 
     window.addEventListener('webrtc-offer', handleOffer as any);
     window.addEventListener('webrtc-answer', handleAnswer as any);
     window.addEventListener('webrtc-ice', handleIce as any);
-
     return () => {
       window.removeEventListener('webrtc-offer', handleOffer as any);
       window.removeEventListener('webrtc-answer', handleAnswer as any);
       window.removeEventListener('webrtc-ice', handleIce as any);
     };
-  }, [createPeerConnection, sendSignal, userId]);
+  }, [connectToPeer, sendSignal]);
 
+  // 4. Manage peer connections based on room users
   useEffect(() => {
     if (!roomId || !userId) return;
 
-    const initPeers = async () => {
-      await initLocalStream();
+    const syncPeers = async () => {
+      await initCamera();
       
-      // Clean up peers for users who are no longer in the room
       const currentUsers = new Set(users.map(u => u.id));
+      
+      // Cleanup users who left
       Object.keys(peers.current).forEach(id => {
         if (!currentUsers.has(id)) {
           peers.current[id].close();
@@ -143,27 +108,18 @@ export function useWebRTC(sendSignal: (data: any) => void) {
         }
       });
 
-      // Initiate offers to users with higher IDs (avoid double-offering)
-      users.forEach(async (user) => {
-        if (user.id !== userId && !peers.current[user.id] && userId! > user.id) {
-          console.log('Initiating offer to:', user.id);
-          const pc = createPeerConnection(user.id);
-          try {
-            makingOffer.current[user.id] = true;
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sendSignal({ type: 'webrtc-offer', targetId: user.id, offer });
-          } catch (err) {
-            console.error('Error creating offer', err);
-          } finally {
-            makingOffer.current[user.id] = false;
+      // Connect to new users (the person with the "higher" ID initiates)
+      users.forEach(user => {
+        if (user.id !== userId && !peers.current[user.id]) {
+          if (userId! > user.id) {
+            connectToPeer(user.id, true);
           }
         }
       });
     };
 
-    initPeers();
-  }, [users, userId, roomId, createPeerConnection, sendSignal]);
+    syncPeers();
+  }, [users, userId, roomId, initCamera, connectToPeer]);
 
-  return { streams, localStream: localStream.current };
+  return { streams };
 }
