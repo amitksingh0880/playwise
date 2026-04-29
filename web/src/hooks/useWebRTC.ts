@@ -10,6 +10,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const [streams, setStreams] = useState<Record<string, MediaStream>>({});
   const peers = useRef<Record<string, RTCPeerConnection>>({});
   const localStream = useRef<MediaStream | null>(null);
+  const makingOffer = useRef<Record<string, boolean>>({});
 
   const initLocalStream = async () => {
     if (localStream.current) return localStream.current;
@@ -55,17 +56,31 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     const handleOffer = async (e: any) => {
       const { from, offer } = e.detail;
       const pc = createPeerConnection(from);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendSignal({ type: 'webrtc-answer', targetId: from, answer });
+      
+      try {
+        const isPolite = userId! < from; // Simple tie-breaker
+        const readyForOffer = !makingOffer.current[from] && (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer');
+        
+        if (!readyForOffer && !isPolite) return;
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendSignal({ type: 'webrtc-answer', targetId: from, answer });
+      } catch (err) {
+        console.error('Error handling offer', err);
+      }
     };
 
     const handleAnswer = async (e: any) => {
       const { from, answer } = e.detail;
       const pc = peers.current[from];
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      if (pc && pc.signalingState !== 'stable') {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (err) {
+          console.error('Error handling answer', err);
+        }
       }
     };
 
@@ -73,7 +88,11 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       const { from, candidate } = e.detail;
       const pc = peers.current[from];
       if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          // Ignore ICE candidates that arrive before remote description
+        }
       }
     };
 
@@ -86,7 +105,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       window.removeEventListener('webrtc-answer', handleAnswer as any);
       window.removeEventListener('webrtc-ice', handleIce as any);
     };
-  }, [createPeerConnection, sendSignal]);
+  }, [createPeerConnection, sendSignal, userId]);
 
   useEffect(() => {
     if (!roomId || !userId) return;
@@ -108,23 +127,25 @@ export function useWebRTC(sendSignal: (data: any) => void) {
         }
       });
 
-      // Initiate offers to new users
+      // Initiate offers to users with higher IDs (avoid double-offering)
       users.forEach(async (user) => {
-        if (user.id !== userId && !peers.current[user.id]) {
+        if (user.id !== userId && !peers.current[user.id] && userId! > user.id) {
           const pc = createPeerConnection(user.id);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          sendSignal({ type: 'webrtc-offer', targetId: user.id, offer });
+          try {
+            makingOffer.current[user.id] = true;
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: 'webrtc-offer', targetId: user.id, offer });
+          } catch (err) {
+            console.error('Error creating offer', err);
+          } finally {
+            makingOffer.current[user.id] = false;
+          }
         }
       });
     };
 
     initPeers();
-
-    return () => {
-      // Don't close local stream on every user change, but close peers if hook unmounts?
-      // Actually, we keep localStream.current. 
-    };
   }, [users, userId, roomId, createPeerConnection, sendSignal]);
 
   return { streams, localStream: localStream.current };

@@ -24,9 +24,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
   // YouTube API Initialization
   useEffect(() => {
-    if (videoState.sourceType !== 'youtube') return;
+    if (videoState.sourceType !== 'youtube' || showPlaceholder) return;
+
+    let isMounted = true;
 
     const initPlayer = () => {
+      if (!isMounted) return;
       const videoId = getYouTubeId(videoState.sourceUrl || '') || 'dQw4w9WgXcQ';
       
       if (playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
@@ -38,31 +41,40 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       const playerElement = document.getElementById('yt-player');
       if (!playerElement) return;
 
-      playerRef.current = new (window as any).YT.Player('yt-player', {
-        videoId: videoId,
-        playerVars: {
-          autoplay: 0,
-          controls: isHost ? 1 : 0,
-          rel: 0,
-          modestbranding: 1,
-          origin: window.location.origin
-        },
-        events: {
-          onReady: (event: any) => {
-            if (!isHost) {
-              event.target.seekTo(videoState.currentTime);
-              if (videoState.isPlaying) event.target.playVideo();
-              else event.target.pauseVideo();
+      try {
+        playerRef.current = new (window as any).YT.Player('yt-player', {
+          videoId: videoId,
+          playerVars: {
+            autoplay: 0,
+            controls: isHost ? 1 : 0,
+            rel: 0,
+            modestbranding: 1,
+            origin: window.location.origin,
+            enablejsapi: 1,
+          },
+          events: {
+            onReady: (event: any) => {
+              if (!isMounted) return;
+              if (!isHost) {
+                event.target.seekTo(videoState.currentTime, true);
+                if (videoState.isPlaying) event.target.playVideo();
+                else event.target.pauseVideo();
+              }
+            },
+            onStateChange: (event: any) => {
+              if (isHost && isMounted) {
+                const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
+                onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
+              }
+            },
+            onError: (err: any) => {
+              console.error('YouTube Player Error:', err);
             }
           },
-          onStateChange: (event: any) => {
-            if (isHost) {
-              const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
-              onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
-            }
-          },
-        },
-      });
+        });
+      } catch (e) {
+        console.error('Failed to create YouTube player', e);
+      }
     };
 
     if (!(window as any).YT) {
@@ -74,7 +86,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
     } else if ((window as any).YT.Player) {
       initPlayer();
     } else {
-      // Script is loading but YT.Player not ready
       const checkInterval = setInterval(() => {
         if ((window as any).YT && (window as any).YT.Player) {
           initPlayer();
@@ -83,32 +94,36 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       }, 100);
       return () => clearInterval(checkInterval);
     }
-  }, [videoState.sourceType, isHost, videoState.sourceUrl]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [videoState.sourceType, isHost, videoState.sourceUrl, showPlaceholder]);
 
   // Periodic sync from host
   useEffect(() => {
     if (!isHost) return;
 
     const interval = setInterval(() => {
-      if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+      if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.getCurrentTime === 'function' && playerRef.current.getPlayerState) {
         const currentTime = playerRef.current.getCurrentTime();
         onSync({ currentTime, isPlaying: playerRef.current.getPlayerState() === 1 });
       } else if (videoState.sourceType !== 'youtube' && videoRef.current) {
         onSync({ currentTime: videoRef.current.currentTime, isPlaying: !videoRef.current.paused });
       }
-    }, 3000); // Sync every 3 seconds
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [isHost, videoState.sourceType, onSync]);
 
   // Sync YouTube player when videoState changes
   useEffect(() => {
-    if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.seekTo === 'function') {
+    if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.seekTo === 'function' && playerRef.current.getPlayerState) {
       if (!isHost) {
         const playerTime = playerRef.current.getCurrentTime();
         const drift = Math.abs(playerTime - videoState.currentTime);
-        if (drift > 1.5) {
-          playerRef.current.seekTo(videoState.currentTime);
+        if (drift > 2.0) { // Increased threshold slightly for stability
+          playerRef.current.seekTo(videoState.currentTime, true);
         }
         
         const playerState = playerRef.current.getPlayerState();
