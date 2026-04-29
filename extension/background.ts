@@ -8,7 +8,13 @@ function connect() {
   socket.onopen = () => {
     console.log("Extension connected to server");
     if (currentRoomId && socket) {
-      socket.send(JSON.stringify({ type: "join", roomId: currentRoomId, name: "Extension User" }));
+      const extensionUserId = `ext_${Math.random().toString(36).substr(2, 9)}`;
+      socket.send(JSON.stringify({
+        type: "join",
+        roomId: currentRoomId,
+        userId: extensionUserId,
+        name: "Extension User"
+      }));
     }
   };
 
@@ -31,8 +37,14 @@ function connect() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "JOIN_ROOM") {
     currentRoomId = msg.roomId;
+    const extensionUserId = `ext_${Math.random().toString(36).substr(2, 9)}`;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "join", roomId: msg.roomId, name: "Extension User" }));
+      socket.send(JSON.stringify({
+        type: "join",
+        roomId: msg.roomId,
+        userId: extensionUserId,
+        name: "Extension User"
+      }));
     } else {
       connect();
     }
