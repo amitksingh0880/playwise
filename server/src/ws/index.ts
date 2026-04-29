@@ -40,6 +40,12 @@ export function setupWS(server: Server) {
     switch (event.type) {
       case "join": {
         const { roomId, name, userId } = event;
+        
+        // If user is already in a room, leave it first to prevent duplicates
+        if (ws.roomId && ws.userId) {
+          roomService.leaveRoom(ws.roomId, ws.userId);
+        }
+
         ws.userId = userId || ws.userId || `user_${Math.random().toString(36).substr(2, 9)}`;
         ws.roomId = roomId;
 

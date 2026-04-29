@@ -42,12 +42,21 @@ export const useRoomStore = create<RoomState>((set) => ({
   userId: localStorage.getItem('playwise_userId') || `user_${Math.random().toString(36).substr(2, 9)}`,
   userName: localStorage.getItem('playwise_userName') || 'Guest',
 
-  setRoom: (room) => set({
-    roomId: room.id,
-    hostId: room.hostId,
-    users: room.users,
-    videoState: room.videoState,
-  }),
+  setRoom: (room) => {
+    // Deduplicate users by ID just in case
+    const uniqueUsers = room.users.reduce((acc: User[], current: User) => {
+      const x = acc.find(item => item.id === current.id);
+      if (!x) return acc.concat([current]);
+      else return acc;
+    }, []);
+
+    set({
+      roomId: room.id,
+      hostId: room.hostId,
+      users: uniqueUsers,
+      videoState: room.videoState,
+    });
+  },
 
   updateVideoState: (state) => set((prev) => ({
     videoState: { ...prev.videoState, ...state, lastUpdated: Date.now() },
