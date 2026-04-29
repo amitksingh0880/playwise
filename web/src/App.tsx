@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './components/VideoPlayer';
 import { Chat } from './components/Chat';
@@ -9,7 +9,6 @@ import { useRoomStore } from './features/room/RoomStore';
 import { 
   Box, 
   Flex, 
-  Grid, 
   Button, 
   IconButton, 
   Card, 
@@ -18,24 +17,21 @@ import {
   Badge,
   TextField,
   Separator,
-  Inset,
   Tooltip
 } from '@radix-ui/themes';
 import { 
   GearIcon, 
   PersonIcon, 
-  Share1Icon, 
   ExitIcon, 
   EnterFullScreenIcon, 
   ExitFullScreenIcon,
-  PlusIcon,
   MagicWandIcon,
   CopyIcon,
   VideoIcon
 } from '@radix-ui/react-icons';
 
 function App() {
-  const { roomId, userId, userName, setRoom, resetRoom } = useRoomStore();
+  const { roomId, userId, userName, resetRoom } = useRoomStore();
   const { send } = useWebSocket();
   const { streams } = useWebRTC(send);
   const [roomInput, setRoomInput] = useState('');
@@ -99,7 +95,7 @@ function App() {
                   animate={{ scale: [1, 1.05, 1] }}
                   transition={{ duration: 4, repeat: Infinity }}
                 >
-                  <Heading size="9" weight="black" style={{ 
+                  <Heading size="9" weight="bold" style={{ 
                     background: 'linear-gradient(to right, var(--orange-9), var(--amber-9))',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
@@ -168,7 +164,7 @@ function App() {
           zIndex: 50
         }}>
           <Flex align="center" gap="4">
-            <Heading size="6" weight="black" style={{ 
+            <Heading size="6" weight="bold" style={{ 
               background: 'linear-gradient(to right, var(--orange-9), var(--amber-9))',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -292,12 +288,12 @@ function App() {
             flexDirection: 'column'
           }}
         >
-          <Box p="4" flexShrink={0}>
+          <Box p="4" flexShrink="0">
             <Heading size="3" mb="3">Participants</Heading>
             <ParticipantGrid streams={streams} />
           </Box>
           <Separator size="4" />
-          <Box flexGrow={1} p="4" overflow="hidden">
+          <Box flexGrow="1" p="4" overflow="hidden">
             <Chat onSendMessage={handleChat} />
           </Box>
         </Box>

@@ -5,7 +5,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 export function useWebSocket() {
   const socketRef = useRef<WebSocket | null>(null);
-  const { roomId, userName, userId, setRoom, updateVideoState } = useRoomStore();
+  const { roomId, userName, setRoom, updateVideoState } = useRoomStore();
 
   const handleMessage = useCallback((data: any) => {
     switch (data.type) {

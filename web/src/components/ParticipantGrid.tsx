@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomStore } from '../features/room/RoomStore';
-import { Grid, Box, Text, Avatar, Card, AspectRatio, Badge } from '@radix-ui/themes';
+import { Grid, Box, Text, Avatar, Card, AspectRatio } from '@radix-ui/themes';
 
 interface ParticipantGridProps {
   streams: Record<string, MediaStream>;
