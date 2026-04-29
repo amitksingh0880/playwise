@@ -15,11 +15,14 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const initLocalStream = async () => {
     if (localStream.current) return localStream.current;
     try {
-      console.log('Requesting media devices...');
+      console.log('Requesting media devices for userId:', userId);
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      console.log('Media stream captured successfully');
+      console.log('Media stream captured successfully for userId:', userId);
       localStream.current = stream;
-      setStreams((prev) => ({ ...prev, [userId!]: stream }));
+      setStreams((prev) => {
+        console.log('Updating streams state with local stream for:', userId);
+        return { ...prev, [userId!]: stream };
+      });
       return stream;
     } catch (err) {
       console.error('Error accessing media devices', err);

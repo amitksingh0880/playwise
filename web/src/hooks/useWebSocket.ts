@@ -44,6 +44,7 @@ export function useWebSocket() {
         ws.send(JSON.stringify({ 
           type: 'join', 
           roomId: currentRoomId, 
+          userId: useRoomStore.getState().userId,
           name: useRoomStore.getState().userName || 'Guest' 
         }));
       }
@@ -84,8 +85,9 @@ export function useWebSocket() {
 
   // Handle room joining when roomId changes from the UI
   useEffect(() => {
+    const { userId } = useRoomStore.getState();
     if (roomId && socketRef.current?.readyState === WebSocket.OPEN) {
-      send({ type: 'join', roomId, name: userName || 'Guest' });
+      send({ type: 'join', roomId, userId, name: userName || 'Guest' });
     }
   }, [roomId, userName, send]);
 

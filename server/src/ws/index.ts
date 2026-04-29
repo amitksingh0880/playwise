@@ -39,8 +39,8 @@ export function setupWS(server: Server) {
   function handleEvent(ws: ExtendedWebSocket, event: WSEvent) {
     switch (event.type) {
       case "join": {
-        const { roomId, name } = event;
-        ws.userId = ws.userId || `user_${Math.random().toString(36).substr(2, 9)}`;
+        const { roomId, name, userId } = event;
+        ws.userId = userId || ws.userId || `user_${Math.random().toString(36).substr(2, 9)}`;
         ws.roomId = roomId;
 
         let room = roomService.getRoom(roomId);
