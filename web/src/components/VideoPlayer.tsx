@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRoomStore } from '../features/room/RoomStore';
-import { Box, Card, Flex, Text, Heading, Button, Callout } from '@radix-ui/themes';
-import { VideoIcon, InfoCircledIcon } from '@radix-ui/react-icons';
 import { motion } from 'framer-motion';
+import { Card } from '@/components/ui/card';
+import { Video, Info } from 'lucide-react';
 
 interface VideoPlayerProps {
   onSync: (state: { currentTime: number; isPlaying: boolean }) => void;
@@ -124,7 +124,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       if (!isHost) {
         const playerTime = playerRef.current.getCurrentTime();
         const drift = Math.abs(playerTime - videoState.currentTime);
-        if (drift > 2.0) { // Increased threshold slightly for stability
+        if (drift > 2.0) {
           playerRef.current.seekTo(videoState.currentTime, true);
         }
         
@@ -155,16 +155,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       const url = URL.createObjectURL(file);
       videoRef.current.src = url;
       setLocalFileLoaded(true);
-      // Host broadcasts the filename so participants know which file to load
       if (isHost && !isParticipant) {
         onSync({ 
           currentTime: 0, 
           isPlaying: false,
-          // @ts-ignore — extend sync state with filename hint
+          // @ts-ignore
           localFileName: file.name 
         });
       }
-      // Immediately seek to current synced time
       if (!isHost) {
         videoRef.current.currentTime = videoState.currentTime;
         if (videoState.isPlaying) videoRef.current.play().catch(() => {});
@@ -176,39 +174,30 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
   const showParticipantPrompt = !isHost && videoState.sourceType === 'local' && !localFileLoaded && localFileName;
 
   return (
-    <Box width="100%" height="100%" style={{ backgroundColor: 'black', position: 'relative', overflow: 'hidden' }}>
+    <div className="w-full h-full bg-black relative overflow-hidden flex items-center justify-center">
       {showPlaceholder ? (
-        <Flex align="center" justify="center" direction="column" gap="4" style={{ height: '100%' }}>
+        <div className="flex flex-col items-center justify-center gap-6 h-full">
           <motion.div
-            animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 3, repeat: Infinity }}
+            animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
-            <Box style={{ 
-              width: 120, 
-              height: 120, 
-              borderRadius: '50%', 
-              background: 'var(--orange-a3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid var(--orange-a4)'
-            }}>
-              <VideoIcon width={48} height={48} color="var(--orange-9)" />
-            </Box>
+            <div className="w-32 h-32 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-[0_0_50px_rgba(249,115,22,0.1)]">
+              <Video className="w-12 h-12 text-zinc-500" />
+            </div>
           </motion.div>
-          <Box style={{ textAlign: 'center' }}>
-            <Heading size="4">Ready for the Show?</Heading>
-            <Text size="2" color="gray">Waiting for the host to start a video...</Text>
-          </Box>
-        </Flex>
+          <div className="text-center space-y-2">
+            <h3 className="text-2xl font-bold text-zinc-300 tracking-tight">Ready for the Show?</h3>
+            <p className="text-zinc-500 font-medium">Waiting for the host to start a video...</p>
+          </div>
+        </div>
       ) : videoState.sourceType === 'youtube' ? (
-        <Box width="100%" height="100%">
-          <div id="yt-player" style={{ width: '100%', height: '100%' }} />
-        </Box>
+        <div className="w-full h-full">
+          <div id="yt-player" className="w-full h-full" />
+        </div>
       ) : (
         <video
           ref={videoRef}
-          style={{ width: '100%', height: '100%' }}
+          className="w-full h-full object-contain"
           controls={canControl}
           onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true })}
           onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false })}
@@ -218,49 +207,47 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
       {/* Participant prompt to load the same local file */}
       {showParticipantPrompt && (
-        <Box 
-          position="absolute" 
-          style={{ inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Flex direction="column" align="center" gap="4" style={{ maxWidth: 400, textAlign: 'center', padding: 32 }}>
-            <InfoCircledIcon width={40} height={40} color="var(--orange-9)" />
-            <Heading size="4">Load Your Copy of the File</Heading>
-            <Text size="2" color="gray">
-              The host is playing: <strong style={{ color: 'var(--orange-11)' }}>{localFileName}</strong>
-              <br /><br />
-              Please select the same file from your device to join the synchronized playback.
-            </Text>
-            <Card style={{ padding: 16, width: '100%', textAlign: 'center', cursor: 'pointer', border: '1px dashed var(--orange-a6)', background: 'var(--orange-a2)' }}>
-              <label style={{ cursor: 'pointer' }}>
-                <Text size="2" weight="bold" style={{ color: 'var(--orange-11)' }}>📂 Click to select the file</Text>
+        <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="flex flex-col items-center gap-6 max-w-md text-center p-8 bg-zinc-950/50 border border-zinc-800/50 rounded-3xl shadow-2xl">
+            <Info className="w-12 h-12 text-orange-500" />
+            <h3 className="text-2xl font-bold text-zinc-100">Load Your Copy</h3>
+            <p className="text-zinc-400 leading-relaxed">
+              The host is playing: <strong className="text-orange-400 font-mono block mt-2 p-2 bg-zinc-900 rounded-lg border border-zinc-800">{localFileName}</strong>
+            </p>
+            <p className="text-sm text-zinc-500">Please select the same file from your device to join the synchronized playback.</p>
+            <Card className="w-full mt-4 border-dashed border-2 border-zinc-800 bg-zinc-950/50 hover:bg-zinc-900 hover:border-orange-500/50 transition-colors cursor-pointer group">
+              <label className="cursor-pointer w-full h-full flex items-center justify-center p-6">
+                <span className="text-sm font-bold text-zinc-300 group-hover:text-orange-400 flex items-center gap-2">
+                  <span className="text-xl">📂</span> Click to select the file
+                </span>
                 <input 
                   type="file" 
                   accept="video/*" 
-                  style={{ display: 'none' }}
+                  className="hidden"
                   onChange={(e) => handleLocalFile(e, false)}
                 />
               </label>
             </Card>
-          </Flex>
-        </Box>
+          </div>
+        </div>
       )}
 
       {/* Host file picker (top-left corner) */}
       {isHost && videoState.sourceType === 'local' && (
-        <Box position="absolute" top="4" left="4" style={{ zIndex: 10 }}>
-          <Card size="1">
-            <Flex align="center" gap="2">
-              <Text size="1" color="gray">📂</Text>
-              <label style={{ cursor: 'pointer' }}>
-                <Text size="1" weight="bold" style={{ color: 'var(--orange-11)' }}>
+        <div className="absolute top-6 left-6 z-10">
+          <Card className="bg-zinc-950/80 backdrop-blur-md border-zinc-800/80 p-2 shadow-xl rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">📂</span>
+              <label className="cursor-pointer">
+                <span className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors">
                   {localFileLoaded ? '✅ File loaded — change file' : 'Select local video file'}
-                </Text>
-                <input type="file" accept="video/*" onChange={handleLocalFile} style={{ display: 'none' }} />
+                </span>
+                <input type="file" accept="video/*" onChange={handleLocalFile} className="hidden" />
               </label>
-            </Flex>
+            </div>
           </Card>
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
