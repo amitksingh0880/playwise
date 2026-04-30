@@ -12,27 +12,29 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const localStream = useRef<MediaStream | null>(null);
   const cameraRequesting = useRef(false); // prevent concurrent getUserMedia calls
 
-  // 1. Initialize camera — with deduplication guard
+  // 1. Initialize camera — reads userId from store directly to avoid stale closure
   const initCamera = useCallback(async () => {
     if (localStream.current) return localStream.current;
-    if (cameraRequesting.current) return null; // already requesting, skip
+    if (cameraRequesting.current) return null;
     cameraRequesting.current = true;
     try {
       console.log('WebRTC: Requesting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 1280, height: 720 }, 
+        video: true, 
         audio: true 
       });
       localStream.current = stream;
-      setStreams(prev => ({ ...prev, [userId!]: stream }));
-      
+      // Read userId from store directly to avoid stale closure after reconnects
+      const currentUserId = useRoomStore.getState().userId;
+      if (currentUserId) {
+        setStreams(prev => ({ ...prev, [currentUserId]: stream }));
+      }
       // Push tracks to any existing peer connections
       Object.values(peers.current).forEach(pc => {
         if (pc.getSenders().length === 0) {
           stream.getTracks().forEach(track => pc.addTrack(track, stream));
         }
       });
-      
       return stream;
     } catch (err) {
       console.error('WebRTC: Camera access denied', err);
@@ -40,7 +42,14 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     } finally {
       cameraRequesting.current = false;
     }
-  }, [userId]);
+  }, []); // No userId dep — reads from store directly
+
+  // 2. Initialize camera immediately when the user enters a room (don't wait for peers)
+  useEffect(() => {
+    if (roomId && userId) {
+      initCamera();
+    }
+  }, [roomId, userId, initCamera]);
 
   // 2. Create connection to a peer
   const connectToPeer = useCallback(async (targetId: string, isInitiator: boolean) => {
