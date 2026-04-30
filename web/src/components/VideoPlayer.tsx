@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Info } from 'lucide-react';
 import Lottie from 'lottie-react';
-import spinAnimation from '../../public/Spin.json';
+import spinAnimation from '../assets/Spin.json';
 
 interface VideoPlayerProps {
   onSync: (state: { currentTime: number; isPlaying: boolean }) => void;
