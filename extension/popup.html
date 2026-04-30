@@ -2,14 +2,93 @@
 <html>
 <head>
   <style>
-    body { width: 250px; padding: 15px; background: #111; color: white; font-family: sans-serif; }
-    h2 { color: #f50; margin-top: 0; }
-    button { width: 100%; padding: 10px; background: #f50; border: none; border-radius: 5px; color: white; cursor: pointer; font-weight: bold; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 260px;
+      padding: 16px;
+      background: #111;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .logo { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .logo h2 { color: #ff5500; font-size: 18px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; flex-shrink: 0; }
+    .dot.connected { background: #22c55e; }
+    #status { font-size: 11px; color: #888; margin-bottom: 16px; }
+    #room-info {
+      display: none;
+      background: #1f1f1f;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+    #room-info p { font-size: 11px; color: #888; margin-bottom: 4px; }
+    #room-id-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    #room-id-text { font-size: 14px; font-weight: bold; color: #ff5500; letter-spacing: 1px; }
+    #copy-btn {
+      background: #333;
+      border: none;
+      color: #aaa;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #copy-btn:hover { background: #444; color: white; }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: background 0.15s;
+    }
+    #create-btn { background: #ff5500; color: white; }
+    #create-btn:hover { background: #ff6600; }
+    #join-btn { background: #1f1f1f; color: white; border: 1px solid #333; }
+    #join-btn:hover { background: #2a2a2a; }
+    #leave-btn {
+      display: none;
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #leave-btn:hover { color: white; border-color: #555; }
   </style>
 </head>
 <body>
-  <h2>Playwise</h2>
-  <button id="joinBtn">Join Room</button>
+  <div class="logo">
+    <div class="dot" id="status-dot"></div>
+    <h2>Playwise</h2>
+  </div>
+  <div id="status">Not in a room</div>
+
+  <div id="room-info">
+    <p>Room ID — share this with friends:</p>
+    <div id="room-id-display">
+      <span id="room-id-text"></span>
+      <button id="copy-btn">Copy</button>
+    </div>
+  </div>
+
+  <button class="btn" id="create-btn">Create Room</button>
+  <button class="btn" id="join-btn">Join Room</button>
+  <button id="leave-btn">Leave Room</button>
+
   <script src="popup.js"></script>
 </body>
 </html>

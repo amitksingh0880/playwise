@@ -22,7 +22,11 @@
       joinBtn.onclick = () => {
         const roomId = prompt("Enter Room ID:");
         if (roomId) {
-          chrome.runtime.sendMessage({ type: "JOIN_ROOM", roomId });
+          try {
+            chrome.runtime.sendMessage({ type: "JOIN_ROOM", roomId });
+          } catch (e) {
+            alert("Extension updated. Please refresh the page to continue.");
+          }
         }
       };
     }
@@ -41,14 +45,22 @@
   }
   function syncState() {
     if (!videoElement) return;
-    chrome.runtime.sendMessage({
-      type: "SYNC_STATE",
-      state: {
-        currentTime: videoElement.currentTime,
-        isPlaying: !videoElement.paused,
-        timestamp: Date.now()
-      }
-    });
+    if (!chrome.runtime?.id) {
+      console.log("[Playwise] Context invalidated. Please refresh the page.");
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({
+        type: "SYNC_STATE",
+        state: {
+          currentTime: videoElement.currentTime,
+          isPlaying: !videoElement.paused,
+          timestamp: Date.now()
+        }
+      });
+    } catch (e) {
+      console.debug("[Playwise] Failed to send sync state (likely context invalidated)");
+    }
   }
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "UPDATE_VIDEO") {

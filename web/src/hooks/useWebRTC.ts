@@ -15,9 +15,21 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const initCamera = useCallback(async () => {
     if (localStream.current) return localStream.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      console.log('WebRTC: Requesting media devices...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 1280, height: 720 }, 
+        audio: true 
+      });
       localStream.current = stream;
       setStreams(prev => ({ ...prev, [userId!]: stream }));
+      
+      // If we already have peer connections, add this new stream to them
+      Object.values(peers.current).forEach(pc => {
+        if (pc.getSenders().length === 0) {
+          stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        }
+      });
+      
       return stream;
     } catch (err) {
       console.error('WebRTC: Camera access denied', err);
@@ -27,12 +39,18 @@ export function useWebRTC(sendSignal: (data: any) => void) {
 
   // 2. Create connection to a peer
   const connectToPeer = useCallback(async (targetId: string, isInitiator: boolean) => {
-    if (peers.current[targetId]) return;
+    if (peers.current[targetId]) {
+      // If connection exists but is failed, close it so we can retry
+      const state = peers.current[targetId].connectionState;
+      if (state !== 'failed' && state !== 'closed') return;
+      peers.current[targetId].close();
+    }
 
+    console.log(`WebRTC: Connecting to ${targetId} (initiator: ${isInitiator})`);
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peers.current[targetId] = pc;
 
-    // Attach local tracks
+    // Attach local tracks if available
     if (localStream.current) {
       localStream.current.getTracks().forEach(track => pc.addTrack(track, localStream.current!));
     }
@@ -41,14 +59,40 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       if (e.candidate) sendSignal({ type: 'webrtc-ice', targetId, candidate: e.candidate });
     };
 
+    pc.onnegotiationneeded = async () => {
+      console.log(`WebRTC: Negotiation needed for ${targetId}`);
+      if (isInitiator) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendSignal({ type: 'webrtc-offer', targetId, offer });
+        } catch (err) {
+          console.error('WebRTC: Negotiation error', err);
+        }
+      }
+    };
+
     pc.ontrack = (e) => {
+      console.log(`WebRTC: Received remote track from ${targetId}`);
       setStreams(prev => ({ ...prev, [targetId]: e.streams[0] }));
     };
 
+    pc.onconnectionstatechange = () => {
+      console.log(`WebRTC: Connection state with ${targetId} is ${pc.connectionState}`);
+      if (pc.connectionState === 'failed') {
+        // Retry logic: delete and let syncPeers recreate it
+        delete peers.current[targetId];
+      }
+    };
+
     if (isInitiator) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendSignal({ type: 'webrtc-offer', targetId, offer });
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignal({ type: 'webrtc-offer', targetId, offer });
+      } catch (err) {
+        console.error('WebRTC: Failed to create offer', err);
+      }
     }
   }, [sendSignal]);
 
@@ -56,24 +100,42 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   useEffect(() => {
     const handleOffer = async (e: any) => {
       const { from, offer } = e.detail;
+      console.log(`WebRTC: Received offer from ${from}`);
       if (!peers.current[from]) await connectToPeer(from, false);
       const pc = peers.current[from];
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendSignal({ type: 'webrtc-answer', targetId: from, answer });
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendSignal({ type: 'webrtc-answer', targetId: from, answer });
+      } catch (err) {
+        console.error('WebRTC: Error handling offer', err);
+      }
     };
 
     const handleAnswer = async (e: any) => {
       const { from, answer } = e.detail;
+      console.log(`WebRTC: Received answer from ${from}`);
       const pc = peers.current[from];
-      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      if (pc) {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (err) {
+          console.error('WebRTC: Error handling answer', err);
+        }
+      }
     };
 
     const handleIce = async (e: any) => {
       const { from, candidate } = e.detail;
       const pc = peers.current[from];
-      if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+      if (pc) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          // Candidates can fail if signaling happens before setRemoteDescription, usually ignorable
+        }
+      }
     };
 
     window.addEventListener('webrtc-offer', handleOffer as any);
@@ -108,7 +170,8 @@ export function useWebRTC(sendSignal: (data: any) => void) {
         }
       });
 
-      // Connect to new users (the person with the "higher" ID initiates)
+      // Connect to users (the person with the "higher" lexicographical ID initiates)
+      // Sorting ensures consistent initiator roles even with complex strings
       users.forEach(user => {
         if (user.id !== userId && !peers.current[user.id]) {
           if (userId! > user.id) {
