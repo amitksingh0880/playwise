@@ -176,15 +176,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
   const showParticipantPrompt = !isHost && videoState.sourceType === 'local' && !localFileLoaded && localFileName;
 
   return (
-    <div className="w-full h-full bg-black relative overflow-hidden flex items-center justify-center">
+    <div className="w-full h-full bg-[#030308] relative overflow-hidden flex items-center justify-center border border-white/5 shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 pointer-events-none" />
       {showPlaceholder ? (
-        <div className="flex flex-col items-center justify-center gap-6 h-full">
-          <div className="w-64 h-64">
+        <div className="flex flex-col items-center justify-center gap-6 h-full relative z-10">
+          <div className="w-64 h-64 drop-shadow-[0_0_30px_rgba(6,182,212,0.5)]">
             <Lottie animationData={spinAnimation} loop={true} />
           </div>
-          <div className="text-center space-y-2 mt-[-20px]">
-            <h3 className="text-2xl font-bold text-zinc-300 tracking-tight">Ready for the Show?</h3>
-            <p className="text-zinc-500 font-medium">Waiting for the host to start a video...</p>
+          <div className="text-center space-y-3 mt-[-20px]">
+            <h3 className="text-3xl font-black text-white tracking-tighter drop-shadow-md">The Stage is Empty</h3>
+            <p className="text-cyan-400/80 font-bold tracking-widest uppercase text-sm">Waiting for host transmission...</p>
           </div>
         </div>
       ) : videoState.sourceType === 'youtube' ? (
@@ -194,7 +195,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       ) : (
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain relative z-10 drop-shadow-2xl"
           controls={canControl}
           onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true })}
           onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false })}
@@ -204,19 +205,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
       {/* Participant prompt to load the same local file */}
       {showParticipantPrompt && (
-        <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="flex flex-col items-center gap-6 max-w-md text-center p-8 bg-zinc-950/50 border border-zinc-800/50 rounded-3xl shadow-2xl">
-            <Info className="w-12 h-12 text-orange-500" />
-            <h3 className="text-2xl font-bold text-zinc-100">Load Your Copy</h3>
-            <p className="text-zinc-400 leading-relaxed">
-              The host is playing: <strong className="text-orange-400 font-mono block mt-2 p-2 bg-zinc-900 rounded-lg border border-zinc-800">{localFileName}</strong>
-            </p>
-            <p className="text-sm text-zinc-500">Please select the same file from your device to join the synchronized playback.</p>
-            <Card className="w-full mt-4 border-dashed border-2 border-zinc-800 bg-zinc-950/50 hover:bg-zinc-900 hover:border-orange-500/50 transition-colors cursor-pointer group">
-              <label className="cursor-pointer w-full h-full flex items-center justify-center p-6">
-                <span className="text-sm font-bold text-zinc-300 group-hover:text-orange-400 flex items-center gap-2">
-                  <span className="text-xl">📂</span> Click to select the file
-                </span>
+        <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="flex flex-col items-center gap-6 max-w-md text-center p-10 bg-slate-950/60 border border-white/10 rounded-[2rem] shadow-[0_0_80px_rgba(6,182,212,0.2)] relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fuchsia-500 to-cyan-500" />
+            <div className="w-20 h-20 bg-cyan-500/10 rounded-full flex items-center justify-center border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+              <Info className="w-10 h-10 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-3xl font-black text-white tracking-tight mb-2">Sync Required</h3>
+              <p className="text-slate-400 font-medium leading-relaxed">
+                The host is currently playing:
+                <strong className="block mt-3 p-3 bg-black/60 rounded-xl border border-white/5 text-cyan-400 font-mono tracking-wider shadow-inner">{localFileName}</strong>
+              </p>
+            </div>
+            <Card className="w-full mt-4 border-dashed border-2 border-white/20 bg-white/5 hover:bg-white/10 hover:border-cyan-500/50 transition-all duration-300 cursor-pointer group rounded-2xl overflow-hidden">
+              <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center p-8 gap-3">
+                <span className="text-4xl group-hover:scale-110 transition-transform duration-300">📁</span>
+                <span className="text-sm font-bold text-slate-300 group-hover:text-cyan-400">SELECT LOCAL FILE</span>
                 <input 
                   type="file" 
                   accept="video/*" 
@@ -231,13 +236,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
       {/* Host file picker (top-left corner) */}
       {isHost && videoState.sourceType === 'local' && (
-        <div className="absolute top-6 left-6 z-10">
-          <Card className="bg-zinc-950/80 backdrop-blur-md border-zinc-800/80 p-2 shadow-xl rounded-xl">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">📂</span>
+        <div className="absolute top-6 left-6 z-30">
+          <Card className="bg-slate-950/60 backdrop-blur-xl border border-white/10 p-2.5 shadow-[0_0_30px_rgba(0,0,0,0.8)] rounded-2xl">
+            <div className="flex items-center gap-3 px-2">
+              <span className="text-lg">📁</span>
               <label className="cursor-pointer">
-                <span className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors">
-                  {localFileLoaded ? '✅ File loaded — change file' : 'Select local video file'}
+                <span className="text-xs font-black tracking-wider uppercase text-cyan-400 hover:text-cyan-300 transition-colors">
+                  {localFileLoaded ? 'FILE ACTIVE — CHANGE' : 'SELECT SOURCE FILE'}
                 </span>
                 <input type="file" accept="video/*" onChange={handleLocalFile} className="hidden" />
               </label>

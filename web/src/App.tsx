@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { 
@@ -22,7 +21,8 @@ import {
   Minimize2,
   Wand2,
   Copy,
-  Video
+  Video,
+  Play
 } from 'lucide-react';
 
 function App() {
@@ -74,68 +74,74 @@ function App() {
 
   if (!roomId) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black overflow-hidden relative">
-        {/* Animated Background Gradients */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-orange-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-rose-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse delay-1000" />
-        <div className="absolute top-[40%] left-[40%] w-[30vw] h-[30vw] bg-amber-500/10 rounded-full blur-[100px] mix-blend-screen" />
+      <div className="flex items-center justify-center min-h-screen bg-[#05050f] overflow-hidden relative font-sans">
+        {/* Massive Dynamic Neon Background */}
+        <div className="absolute top-[-30%] left-[-20%] w-[70vw] h-[70vw] bg-fuchsia-600/30 rounded-full blur-[150px] mix-blend-screen animate-pulse duration-[8000ms]" />
+        <div className="absolute bottom-[-30%] right-[-20%] w-[70vw] h-[70vw] bg-cyan-600/30 rounded-full blur-[150px] mix-blend-screen animate-pulse duration-[10000ms]" />
+        <div className="absolute top-[20%] left-[60%] w-[40vw] h-[40vw] bg-violet-600/20 rounded-full blur-[120px] mix-blend-screen" />
 
         <motion.div 
-          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          initial={{ opacity: 0, y: 50, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 w-full max-w-md p-6"
+          transition={{ type: "spring", stiffness: 100, damping: 20 }}
+          className="relative z-10 w-full max-w-lg p-6"
         >
-          <Card className="bg-zinc-950/50 border-zinc-800/50 backdrop-blur-xl shadow-2xl">
-            <CardContent className="pt-8 pb-8 flex flex-col gap-8">
-              <div className="text-center space-y-2">
-                <motion.h1 
-                  animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
-                  className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 bg-[length:200%_auto] bg-clip-text text-transparent"
+          <Card className="bg-slate-950/40 border border-white/10 backdrop-blur-3xl shadow-[0_0_80px_rgba(192,38,211,0.15)] rounded-3xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 via-transparent to-cyan-500/10" />
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-fuchsia-500/50 to-transparent" />
+            
+            <CardContent className="pt-12 pb-10 px-10 flex flex-col gap-10 relative z-10">
+              <div className="text-center space-y-4">
+                <motion.div
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
+                  className="mx-auto w-20 h-20 bg-gradient-to-br from-fuchsia-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(192,38,211,0.5)] mb-6 transform rotate-3"
                 >
+                  <Play className="w-10 h-10 text-white fill-white ml-1" />
+                </motion.div>
+                <h1 className="text-6xl font-black tracking-tighter bg-gradient-to-r from-white via-fuchsia-200 to-cyan-200 bg-clip-text text-transparent drop-shadow-lg">
                   Playwise
-                </motion.h1>
-                <p className="text-zinc-400 font-medium tracking-wide">Your synchronized digital theater.</p>
+                </h1>
+                <p className="text-slate-400 font-medium tracking-widest uppercase text-sm">Next-Gen Watch Party</p>
               </div>
 
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold tracking-wider text-zinc-500 uppercase">Nickname</label>
+              <div className="space-y-6 mt-4">
+                <div className="space-y-2 group">
                   <Input 
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
-                    placeholder="e.g. Movie Buff"
-                    className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-orange-500 h-12 text-lg"
+                    placeholder="Enter your nickname"
+                    className="bg-black/50 border-white/10 focus-visible:ring-fuchsia-500 focus-visible:border-fuchsia-500 h-14 text-lg text-center font-bold text-white placeholder:text-slate-600 rounded-xl transition-all shadow-inner"
                   />
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <Button 
                     onClick={handleCreate} 
-                    className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 transition-all duration-300 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)]"
+                    className="w-full h-14 text-lg font-black tracking-wide bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white border-none rounded-xl shadow-[0_0_40px_rgba(192,38,211,0.4)] hover:shadow-[0_0_60px_rgba(192,38,211,0.6)] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    <Wand2 className="mr-2 h-5 w-5" /> Create New Session
+                    <Wand2 className="mr-3 h-6 w-6" /> START NEW SESSION
                   </Button>
                   
-                  <div className="relative">
+                  <div className="relative py-2">
                     <div className="absolute inset-0 flex items-center">
-                      <Separator className="w-full border-zinc-800" />
+                      <div className="w-full border-t border-white/10" />
                     </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-zinc-950/50 px-2 text-zinc-500 font-bold tracking-wider">Or enter room code</span>
+                    <div className="relative flex justify-center text-xs font-black uppercase tracking-widest">
+                      <span className="bg-[#0b0c16] px-4 text-slate-500 rounded-full border border-white/5 py-1">Or join existing</span>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <Input 
                       value={roomInput}
                       onChange={(e) => setRoomInput(e.target.value)}
-                      placeholder="XXXXXX"
-                      className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-orange-500 uppercase font-mono text-center tracking-widest h-12 text-lg"
+                      placeholder="ROOM ID"
+                      className="bg-black/50 border-white/10 focus-visible:ring-cyan-500 focus-visible:border-cyan-500 uppercase font-mono text-center tracking-widest h-14 text-lg font-bold text-cyan-400 placeholder:text-slate-700 rounded-xl"
                     />
-                    <Button onClick={handleJoin} variant="secondary" className="h-12 px-8 font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-100">
-                      Join
+                    <Button onClick={handleJoin} className="h-14 px-8 font-black bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-xl transition-all hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                      JOIN
                     </Button>
                   </div>
                 </div>
@@ -149,61 +155,67 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-screen bg-black text-zinc-100 overflow-hidden font-sans">
-        {/* Header - Floating Glassmorphic */}
+      <div className="flex flex-col h-screen bg-[#020205] text-slate-100 overflow-hidden font-sans">
+        {/* Floating Ultra-Premium Header */}
         <motion.header
           initial={{ y: -100 }}
           animate={{ y: 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-          className="absolute top-0 w-full z-50 p-4 pointer-events-none"
+          transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+          className="absolute top-6 left-6 right-6 z-50 pointer-events-none"
         >
-          <div className="max-w-7xl mx-auto flex items-center justify-between bg-zinc-950/60 backdrop-blur-md border border-zinc-800/50 rounded-2xl px-6 py-3 shadow-2xl pointer-events-auto">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                Playwise
-              </h1>
-              <Badge variant="secondary" className="bg-zinc-800/80 text-orange-400 hover:bg-zinc-800 border-none gap-1.5 px-3">
-                <Users className="w-3.5 h-3.5" /> {useRoomStore.getState().users.length} Live
+          <div className="max-w-full mx-auto flex items-center justify-between bg-slate-950/40 backdrop-blur-2xl border border-white/10 rounded-2xl px-6 py-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] pointer-events-auto">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-fuchsia-500 to-cyan-500 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(192,38,211,0.5)]">
+                  <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                </div>
+                <h1 className="text-2xl font-black tracking-tight text-white drop-shadow-md">
+                  Playwise
+                </h1>
+              </div>
+              <Badge className="bg-white/5 hover:bg-white/10 text-cyan-400 border border-cyan-500/30 gap-2 px-4 py-1.5 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="font-bold tracking-wider">{useRoomStore.getState().users.length} LIVE</span>
               </Badge>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
               {useRoomStore.getState().hostId === userId && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button 
-                      variant={useRoomStore.getState().isLocked ? "destructive" : "ghost"} 
+                      variant="outline"
                       size="icon"
-                      className={`rounded-full transition-all ${useRoomStore.getState().isLocked ? 'shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'hover:bg-zinc-800'}`}
+                      className={`h-11 w-11 rounded-full border-white/10 transition-all duration-300 ${useRoomStore.getState().isLocked ? 'bg-fuchsia-500/20 border-fuchsia-500/50 shadow-[0_0_20px_rgba(192,38,211,0.4)]' : 'bg-black/40 hover:bg-white/10'}`}
                       onClick={() => send({ type: 'toggle-lock' })}
                     >
-                      {useRoomStore.getState().isLocked ? '🔒' : '🔓'}
+                      <span className="text-lg">{useRoomStore.getState().isLocked ? '🔒' : '🔓'}</span>
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{useRoomStore.getState().isLocked ? "Unlock Controls" : "Lock Controls (Host Only)"}</p>
+                  <TooltipContent className="bg-slate-900 border-white/10 font-bold">
+                    <p>{useRoomStore.getState().isLocked ? "Unlock Room Controls" : "Lock Room Controls"}</p>
                   </TooltipContent>
                 </Tooltip>
               )}
               
-              <div className="flex items-center gap-1.5 bg-zinc-900/80 border border-zinc-800 rounded-full pl-4 pr-1 py-1">
-                <span className="text-sm font-mono font-bold tracking-widest text-orange-400">
+              <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full pl-5 pr-1.5 py-1.5 shadow-inner">
+                <span className="text-sm font-mono font-bold tracking-[0.2em] text-fuchsia-400">
                   {roomId}
                 </span>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100" onClick={() => navigator.clipboard.writeText(roomId || '')}>
-                      <Copy className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-fuchsia-500/20 text-slate-400 hover:text-fuchsia-400 transition-colors" onClick={() => navigator.clipboard.writeText(roomId || '')}>
+                      <Copy className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent><p>Copy Room Code</p></TooltipContent>
+                  <TooltipContent className="bg-slate-900 border-white/10"><p className="font-bold">Copy Room Code</p></TooltipContent>
                 </Tooltip>
               </div>
 
-              <div className="w-[1px] h-6 bg-zinc-800 mx-1" />
+              <div className="w-[1px] h-8 bg-white/10 mx-2" />
               
-              <Button variant="ghost" size="icon" className="rounded-full text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10" onClick={resetRoom}>
-                <LogOut className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-black/40 border border-white/10 text-slate-400 hover:text-white hover:bg-rose-500 hover:border-rose-500 hover:shadow-[0_0_20px_rgba(244,63,94,0.5)] transition-all duration-300" onClick={resetRoom}>
+                <LogOut className="h-5 w-5 ml-1" />
               </Button>
             </div>
           </div>
@@ -213,39 +225,45 @@ function App() {
         <div className="flex flex-1 overflow-hidden relative">
           
           {/* Video Area */}
-          <div className="flex-1 relative bg-black flex flex-col justify-center overflow-hidden">
+          <div className="flex-1 relative bg-[#020205] flex flex-col justify-center overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(192,38,211,0.05),transparent_70%)] pointer-events-none" />
+            
             <VideoPlayer onSync={handleSync} />
             <ReactionOverlay />
             
-            {/* Hover Controls Overlay */}
+            {/* Ultra-Stylized Hover Controls */}
             <AnimatePresence>
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-3xl"
+                initial={{ opacity: 0, y: 40, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 40, scale: 0.95 }}
+                transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+                className="absolute bottom-10 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-4xl"
               >
-                <div className="flex items-center justify-between bg-zinc-950/80 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-3 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)]">
+                <div className="flex items-center justify-between bg-slate-950/60 backdrop-blur-3xl border border-white/10 rounded-3xl p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
                   
                   {/* Host Info & Reactions */}
-                  <div className="flex items-center gap-4 pl-2">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg">
-                      <Wand2 className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-zinc-100">Session Active</span>
-                      <span className="text-xs text-zinc-400">Host: {useRoomStore.getState().hostId === userId ? 'You' : 'Participant'}</span>
+                  <div className="flex items-center gap-6 pl-3 relative z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-white/20">
+                        <Wand2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-base font-black tracking-wide text-white drop-shadow-md">THEATER LIVE</span>
+                        <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase">Host: {useRoomStore.getState().hostId === userId ? 'You' : 'Participant'}</span>
+                      </div>
                     </div>
                     
-                    <div className="w-[1px] h-8 bg-zinc-800 mx-2" />
+                    <div className="w-[1px] h-10 bg-white/10 mx-2" />
                     
-                    <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-full border border-zinc-800/50">
+                    <div className="flex gap-2 bg-black/40 p-1.5 rounded-full border border-white/5 shadow-inner">
                       {['❤️', '🔥', '😂', '😮', '👏'].map(emoji => (
                         <Button 
                           key={emoji}
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 rounded-full text-lg hover:bg-zinc-800 hover:scale-110 transition-all active:scale-95"
+                          className="h-10 w-10 rounded-full text-xl hover:bg-white/10 hover:scale-125 hover:-translate-y-2 transition-all duration-300 ease-out active:scale-95 shadow-sm"
                           onClick={() => send({ type: 'reaction', emoji })}
                         >
                           {emoji}
@@ -255,32 +273,34 @@ function App() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pr-2">
+                  <div className="flex items-center gap-3 pr-2 relative z-10">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="secondary" size="icon" className="rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300" onClick={() => setShowSourceDialog(true)}>
-                          <Video className="h-4 w-4" />
+                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-black/50 border-white/10 hover:bg-fuchsia-500 hover:border-fuchsia-500 hover:text-white text-slate-300 transition-all duration-300 hover:shadow-[0_0_20px_rgba(192,38,211,0.5)]" onClick={() => setShowSourceDialog(true)}>
+                          <Video className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent><p>Change Video Source</p></TooltipContent>
+                      <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>Change Video Source</p></TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
-                          variant="secondary" 
+                          variant="outline" 
                           size="icon" 
-                          className={`rounded-full ${sidebarHidden ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'}`}
+                          className={`h-12 w-12 rounded-full border-white/10 transition-all duration-300 ${sidebarHidden ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.4)]' : 'bg-black/50 text-slate-300 hover:bg-white/10'}`}
                           onClick={() => setSidebarHidden(!sidebarHidden)}
                         >
-                          {sidebarHidden ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+                          {sidebarHidden ? <Maximize2 className="h-5 w-5" /> : <Minimize2 className="h-5 w-5" />}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent><p>{sidebarHidden ? "Show Sidebar" : "Cinema Mode"}</p></TooltipContent>
+                      <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>{sidebarHidden ? "Show Sidebar" : "Cinema Mode"}</p></TooltipContent>
                     </Tooltip>
 
-                    <Button variant="secondary" size="icon" className="rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 ml-2">
-                      <Settings2 className="h-4 w-4" />
+                    <div className="w-[1px] h-8 bg-white/10 mx-1" />
+
+                    <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-black/50 border-white/10 hover:bg-white/10 text-slate-300 transition-all duration-300">
+                      <Settings2 className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
@@ -288,51 +308,59 @@ function App() {
             </AnimatePresence>
           </div>
 
-          {/* Collapsible Sidebar */}
+          {/* Hyper-Stylized Sidebar */}
           <motion.div 
             animate={{ 
-              width: sidebarHidden ? 0 : 380,
+              width: sidebarHidden ? 0 : 420,
               opacity: sidebarHidden ? 0 : 1,
-              x: sidebarHidden ? 100 : 0
+              x: sidebarHidden ? 50 : 0
             }}
-            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-            className="h-full bg-zinc-950/80 backdrop-blur-2xl border-l border-zinc-800/80 flex flex-col pt-24 pb-4 overflow-hidden shrink-0 z-40 shadow-2xl relative"
+            transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+            className="h-full bg-slate-950/70 backdrop-blur-3xl border-l border-white/10 flex flex-col pt-32 pb-6 overflow-hidden shrink-0 z-40 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] relative"
           >
-            <div className="px-6 pb-2 shrink-0">
-              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Participants</h2>
+            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-l from-cyan-500/30 to-transparent" />
+            
+            <div className="px-6 pb-4 shrink-0">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-2 h-6 bg-cyan-500 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
+                <h2 className="text-lg font-black text-white uppercase tracking-widest drop-shadow-md">The Audience</h2>
+              </div>
               <ParticipantGrid streams={streams} />
             </div>
             
-            <div className="px-6 py-2">
-              <Separator className="bg-zinc-800" />
+            <div className="px-6 py-4">
+              <Separator className="bg-white/10" />
             </div>
             
-            <div className="flex-1 overflow-hidden px-2 flex flex-col">
+            <div className="flex-1 overflow-hidden px-4 flex flex-col">
               <Chat onSendMessage={handleChat} />
             </div>
           </motion.div>
         </div>
 
-        {/* Change Source Dialog */}
+        {/* Cinematic Source Dialog */}
         <Dialog open={showSourceDialog} onOpenChange={setShowSourceDialog}>
-          <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Change Video Source</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Paste a YouTube URL or a direct link to a video file.
+          <DialogContent className="bg-slate-950/90 backdrop-blur-2xl border border-white/10 text-white sm:max-w-lg rounded-3xl shadow-[0_0_100px_rgba(0,0,0,1)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/10 to-cyan-500/10 rounded-3xl pointer-events-none" />
+            <DialogHeader className="relative z-10 pt-4">
+              <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-3">
+                <Video className="w-6 h-6 text-fuchsia-400" /> Source Selection
+              </DialogTitle>
+              <DialogDescription className="text-slate-400 text-base font-medium pt-2">
+                Drop a YouTube URL or direct link to start streaming.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-8 relative z-10">
               <Input 
                 placeholder="https://youtube.com/watch?v=..." 
                 value={sourceUrlInput}
                 onChange={(e) => setSourceUrlInput(e.target.value)}
-                className="bg-zinc-900 border-zinc-800 focus-visible:ring-orange-500"
+                className="bg-black/60 border-white/10 focus-visible:ring-fuchsia-500 focus-visible:border-fuchsia-500 h-14 text-lg font-medium placeholder:text-slate-600 rounded-xl"
               />
             </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setShowSourceDialog(false)} className="hover:bg-zinc-800 hover:text-zinc-100">Cancel</Button>
-              <Button onClick={handleUpdateSource} className="bg-orange-600 hover:bg-orange-500 text-white">Update Source</Button>
+            <DialogFooter className="relative z-10 pb-2">
+              <Button variant="ghost" onClick={() => setShowSourceDialog(false)} className="h-12 px-6 rounded-xl font-bold hover:bg-white/10 text-slate-300">Cancel</Button>
+              <Button onClick={handleUpdateSource} className="h-12 px-8 rounded-xl font-black tracking-wide bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white border-none shadow-[0_0_20px_rgba(192,38,211,0.4)]">Play Source</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

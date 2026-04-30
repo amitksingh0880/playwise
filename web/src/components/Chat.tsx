@@ -65,31 +65,31 @@ export const Chat: React.FC<{ onSendMessage: (msg: string) => void }> = ({ onSen
         <span className="text-xs text-zinc-500">{messages.length} messages</span>
       </div>
       
-      <div className="flex-1 flex flex-col bg-zinc-900/50 rounded-xl border border-zinc-800/50 overflow-hidden">
-        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-          <div className="flex flex-col gap-4">
+      <div className="flex-1 flex flex-col bg-black/40 backdrop-blur-xl rounded-[2rem] border border-white/10 overflow-hidden shadow-inner">
+        <ScrollArea className="flex-1 p-5" ref={scrollRef}>
+          <div className="flex flex-col gap-6">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, x: -10, scale: 0.95 }}
+                  initial={{ opacity: 0, x: -20, scale: 0.9 }}
                   animate={{ opacity: 1, x: 0, scale: 1 }}
-                  transition={{ duration: 0.3, type: "spring", stiffness: 200, damping: 20 }}
+                  transition={{ duration: 0.4, type: "spring", stiffness: 200, damping: 20 }}
                 >
-                  <div className="flex gap-3 items-start">
-                    <Avatar className="w-8 h-8 border border-zinc-700">
-                      <AvatarFallback className="bg-zinc-800 text-orange-400 text-xs font-bold">
+                  <div className="flex gap-4 items-start">
+                    <Avatar className="w-10 h-10 border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                      <AvatarFallback className="bg-gradient-to-br from-fuchsia-600 to-cyan-600 text-white text-sm font-black">
                         {msg.userName.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-zinc-300">{msg.userName}</span>
-                        <span className="text-[10px] text-zinc-600">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-sm font-black tracking-wide text-white drop-shadow-md">{msg.userName}</span>
+                        <span className="text-[10px] font-bold text-slate-500 tracking-wider">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <div className="bg-zinc-800/80 rounded-2xl rounded-tl-none px-3 py-2 text-sm text-zinc-200 border border-zinc-700/50">
+                      <div className="bg-white/5 backdrop-blur-md rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-200 border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.5)]">
                         {msg.message}
                       </div>
                     </div>
@@ -100,16 +100,16 @@ export const Chat: React.FC<{ onSendMessage: (msg: string) => void }> = ({ onSen
           </div>
         </ScrollArea>
 
-        <div className="p-3 bg-zinc-950/50 border-t border-zinc-800/50">
-          <form onSubmit={handleSubmit} className="flex gap-2">
+        <div className="p-4 bg-slate-950/80 border-t border-white/10 backdrop-blur-3xl">
+          <form onSubmit={handleSubmit} className="flex gap-3">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Send a message..."
-              className="flex-1 bg-zinc-900 border-zinc-800 focus-visible:ring-orange-500 rounded-full px-4"
+              placeholder="Type a message..."
+              className="flex-1 bg-black/60 border-white/10 focus-visible:ring-cyan-500 rounded-2xl px-5 h-12 text-sm font-medium shadow-inner placeholder:text-slate-600"
             />
-            <Button type="submit" size="icon" className="rounded-full bg-orange-600 hover:bg-orange-500 text-white shrink-0">
-              <Send className="w-4 h-4" />
+            <Button type="submit" size="icon" className="h-12 w-12 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white shrink-0 shadow-[0_0_20px_rgba(192,38,211,0.4)] border-none transition-all hover:scale-105 active:scale-95">
+              <Send className="w-5 h-5 ml-1" />
             </Button>
           </form>
         </div>
