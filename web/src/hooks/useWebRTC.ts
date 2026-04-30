@@ -10,12 +10,15 @@ export function useWebRTC(sendSignal: (data: any) => void) {
   const [streams, setStreams] = useState<Record<string, MediaStream>>({});
   const peers = useRef<Record<string, RTCPeerConnection>>({});
   const localStream = useRef<MediaStream | null>(null);
+  const cameraRequesting = useRef(false); // prevent concurrent getUserMedia calls
 
-  // 1. Initialize camera
+  // 1. Initialize camera — with deduplication guard
   const initCamera = useCallback(async () => {
     if (localStream.current) return localStream.current;
+    if (cameraRequesting.current) return null; // already requesting, skip
+    cameraRequesting.current = true;
     try {
-      console.log('WebRTC: Requesting media devices...');
+      console.log('WebRTC: Requesting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { width: 1280, height: 720 }, 
         audio: true 
@@ -23,7 +26,7 @@ export function useWebRTC(sendSignal: (data: any) => void) {
       localStream.current = stream;
       setStreams(prev => ({ ...prev, [userId!]: stream }));
       
-      // If we already have peer connections, add this new stream to them
+      // Push tracks to any existing peer connections
       Object.values(peers.current).forEach(pc => {
         if (pc.getSenders().length === 0) {
           stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -34,6 +37,8 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     } catch (err) {
       console.error('WebRTC: Camera access denied', err);
       return null;
+    } finally {
+      cameraRequesting.current = false;
     }
   }, [userId]);
 

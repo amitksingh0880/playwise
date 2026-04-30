@@ -10,9 +10,6 @@ interface ParticipantGridProps {
 export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => {
   const { users, userId } = useRoomStore();
 
-  console.log('ParticipantGrid rendering. Users:', users.length, 'Streams keys:', Object.keys(streams));
-  console.log('Current local userId:', userId);
-
   return (
     <Grid columns={{ initial: '1', sm: '2' }} gap="3">
       <AnimatePresence>
@@ -86,10 +83,29 @@ const VideoFeed: React.FC<{ stream: MediaStream; isLocal: boolean }> = ({ stream
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
   React.useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(err => console.error('Video play error:', err));
-    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    let cancelled = false;
+    video.srcObject = stream;
+
+    const tryPlay = async () => {
+      try {
+        await video.play();
+      } catch (err: any) {
+        // Ignore AbortError — it just means the stream was updated before play completed
+        if (!cancelled && err?.name !== 'AbortError') {
+          console.warn('VideoFeed play error:', err?.name);
+        }
+      }
+    };
+
+    tryPlay();
+
+    return () => {
+      cancelled = true;
+      video.srcObject = null;
+    };
   }, [stream]);
 
   return (
