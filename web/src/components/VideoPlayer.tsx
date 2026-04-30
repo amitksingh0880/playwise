@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Info } from 'lucide-react';
 import Lottie from 'lottie-react';
 import spinAnimation from '../assets/Spin.json';
+import Hls from 'hls.js';
 
 interface VideoPlayerProps {
   onSync: (state: { currentTime: number; isPlaying: boolean }) => void;
@@ -150,6 +151,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       }
     }
   }, [videoState, isHost]);
+
+  // Handle URL sources (HLS and standard MP4)
+  useEffect(() => {
+    if (videoState.sourceType !== 'url' || !videoState.sourceUrl || !videoRef.current) return;
+    
+    let hls: Hls | null = null;
+    
+    if (Hls.isSupported() && videoState.sourceUrl.includes('.m3u8')) {
+      hls = new Hls();
+      hls.loadSource(videoState.sourceUrl);
+      hls.attachMedia(videoRef.current);
+    } else {
+      // Fallback to native video playback (mp4, webm, or native HLS in Safari)
+      videoRef.current.src = videoState.sourceUrl;
+    }
+    
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [videoState.sourceType, videoState.sourceUrl]);
 
   const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>, isParticipant = false) => {
     const file = e.target.files?.[0];
