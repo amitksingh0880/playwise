@@ -2,92 +2,152 @@
 <html>
 <head>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'JetBrains Mono', monospace; }
     body {
-      width: 260px;
-      padding: 16px;
-      background: #111;
+      width: 300px;
+      background: #05050f;
       color: white;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    .logo { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .logo h2 { color: #ff5500; font-size: 18px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; flex-shrink: 0; }
-    .dot.connected { background: #22c55e; }
-    #status { font-size: 11px; color: #888; margin-bottom: 16px; }
-    #room-info {
-      display: none;
-      background: #1f1f1f;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 10px;
-      margin-bottom: 12px;
+    .header {
+      padding: 16px 18px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.02);
     }
-    #room-info p { font-size: 11px; color: #888; margin-bottom: 4px; }
-    #room-id-display {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      justify-content: space-between;
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #c026d3, #06b6d4);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; box-shadow: 0 0 16px rgba(192,38,211,0.5);
     }
-    #room-id-text { font-size: 14px; font-weight: bold; color: #ff5500; letter-spacing: 1px; }
-    #copy-btn {
-      background: #333;
-      border: none;
-      color: #aaa;
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      cursor: pointer;
+    .logo-text { font-size: 16px; font-weight: 800; letter-spacing: -0.5px; }
+    .status-badge {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px; padding: 3px 10px; color: rgba(255,255,255,0.4);
+      transition: all 0.3s;
     }
-    #copy-btn:hover { background: #444; color: white; }
+    .status-badge.connected { background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.3); color: #06b6d4; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #444; transition: all 0.3s; }
+    .status-dot.on { background: #06b6d4; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+    #name-input {
+      width: 100%; padding: 10px 14px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: white; font-size: 13px; font-family: inherit;
+      outline: none; transition: border-color 0.2s; text-align: center;
+    }
+    #name-input:focus { border-color: rgba(192,38,211,0.5); }
+    #name-input::placeholder { color: rgba(255,255,255,0.3); }
+
     .btn {
-      width: 100%;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 14px;
-      cursor: pointer;
-      margin-bottom: 8px;
-      transition: background 0.15s;
+      width: 100%; padding: 11px 14px; border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+      letter-spacing: 0.5px; transition: all 0.2s;
     }
-    #create-btn { background: #ff5500; color: white; }
-    #create-btn:hover { background: #ff6600; }
-    #join-btn { background: #1f1f1f; color: white; border: 1px solid #333; }
-    #join-btn:hover { background: #2a2a2a; }
+    #create-btn {
+      background: linear-gradient(135deg, #c026d3, #06b6d4);
+      color: white;
+      box-shadow: 0 0 20px rgba(192,38,211,0.3);
+    }
+    #create-btn:hover { transform: translateY(-1px); box-shadow: 0 0 30px rgba(192,38,211,0.5); }
+    .divider {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10px; color: rgba(255,255,255,0.25); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.07);
+    }
+    .join-row { display: flex; gap: 8px; }
+    #room-input {
+      flex: 1; padding: 10px 14px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: #06b6d4; font-size: 13px; font-weight: 700;
+      font-family: monospace; letter-spacing: 2px; text-transform: uppercase;
+      outline: none; transition: border-color 0.2s;
+    }
+    #room-input:focus { border-color: rgba(6,182,212,0.5); }
+    #room-input::placeholder { color: rgba(255,255,255,0.2); letter-spacing: 0; font-weight: 400; text-transform: none; }
+    #join-btn {
+      padding: 10px 14px; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+      color: white; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    #join-btn:hover { background: rgba(255,255,255,0.12); }
+
+    /* Connected state */
+    #connected-view {
+      display: none; flex-direction: column; gap: 10px;
+    }
+    #connected-view.show { display: flex; }
+    .room-card {
+      background: rgba(192,38,211,0.08); border: 1px solid rgba(192,38,211,0.2);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .room-card-label { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .room-card-id { display: flex; align-items: center; justify-content: space-between; }
+    #room-id-text { font-size: 18px; font-weight: 800; color: #c026d3; letter-spacing: 3px; }
+    #copy-btn {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; color: rgba(255,255,255,0.5); font-size: 10px; font-weight: 700;
+      padding: 4px 10px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    #copy-btn:hover { background: rgba(255,255,255,0.12); color: white; }
+    .hint { font-size: 10px; color: rgba(255,255,255,0.3); text-align: center; line-height: 1.6; }
     #leave-btn {
-      display: none;
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #333;
-      border-radius: 8px;
-      background: transparent;
-      color: #888;
-      font-size: 13px;
-      cursor: pointer;
+      background: transparent; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; color: rgba(255,255,255,0.4); font-size: 12px;
+      font-weight: 700; padding: 9px; cursor: pointer; font-family: inherit; width: 100%;
+      transition: all 0.2s;
     }
-    #leave-btn:hover { color: white; border-color: #555; }
+    #leave-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+    #join-view { display: flex; flex-direction: column; gap: 12px; }
+    #join-view.hidden { display: none; }
   </style>
 </head>
 <body>
-  <div class="logo">
-    <div class="dot" id="status-dot"></div>
-    <h2>Playwise</h2>
-  </div>
-  <div id="status">Not in a room</div>
-
-  <div id="room-info">
-    <p>Room ID — share this with friends:</p>
-    <div id="room-id-display">
-      <span id="room-id-text"></span>
-      <button id="copy-btn">Copy</button>
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">▶</div>
+      <span class="logo-text">Playwise</span>
+    </div>
+    <div class="status-badge" id="status-badge">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Offline</span>
     </div>
   </div>
 
-  <button class="btn" id="create-btn">Create Room</button>
-  <button class="btn" id="join-btn">Join Room</button>
-  <button id="leave-btn">Leave Room</button>
+  <div class="body">
+    <div id="join-view">
+      <input id="name-input" placeholder="Your nickname" />
+      <button class="btn" id="create-btn">✦ Create Room</button>
+      <div class="divider">or join</div>
+      <div class="join-row">
+        <input id="room-input" placeholder="Room ID" />
+        <button id="join-btn">Join</button>
+      </div>
+    </div>
+
+    <div id="connected-view">
+      <div class="room-card">
+        <div class="room-card-label">Room Code — share with friends</div>
+        <div class="room-card-id">
+          <span id="room-id-text">——</span>
+          <button id="copy-btn">Copy</button>
+        </div>
+      </div>
+      <p class="hint">The floating panel is now visible on this page. Chat, reactions & cams are live!</p>
+      <button id="leave-btn">Leave Room</button>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

@@ -1,30 +1,28 @@
 {
   "manifest_version": 3,
-  "name": "Playwise Overlay",
-  "version": "1.0.0",
-  "description": "Watch together with synced playback on Netflix, YouTube, and Prime Video.",
-  "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": [
-    "*://*.netflix.com/*",
-    "*://*.youtube.com/*",
-    "*://*.primevideo.com/*"
-  ],
+  "name": "Playwise",
+  "version": "2.0.0",
+  "description": "Watch anything together. Floating chat, cams, and real-time sync on any website.",
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "*://*.netflix.com/*",
-        "*://*.youtube.com/*",
-        "*://*.primevideo.com/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["overlay.css"]
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
