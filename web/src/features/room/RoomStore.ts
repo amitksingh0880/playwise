@@ -22,6 +22,7 @@ export interface RoomState {
   videoState: VideoState;
   userId: string | null;
   userName: string | null;
+  isLocked: boolean;
   
   setRoom: (room: any) => void;
   updateVideoState: (state: Partial<VideoState>) => void;
@@ -33,6 +34,7 @@ export const useRoomStore = create<RoomState>((set) => ({
   roomId: null,
   hostId: null,
   users: [],
+  isLocked: false,
   videoState: {
     sourceType: "youtube",
     currentTime: 0,
@@ -57,6 +59,7 @@ export const useRoomStore = create<RoomState>((set) => ({
       roomId: room.id,
       hostId: room.hostId,
       users: uniqueUsers,
+      isLocked: room.isLocked || false,
       videoState: room.videoState,
     });
   },

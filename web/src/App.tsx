@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './components/VideoPlayer';
 import { Chat } from './components/Chat';
 import { ParticipantGrid } from './components/ParticipantGrid';
+import { ReactionOverlay } from './components/ReactionOverlay';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useRoomStore } from './features/room/RoomStore';
@@ -176,8 +177,20 @@ function App() {
             </Badge>
           </Flex>
 
-          <Flex align="center" gap="4">
-            <Flex align="center" gap="2">
+            <Flex align="center" gap="4">
+              {useRoomStore.getState().hostId === userId && (
+                <Tooltip content={useRoomStore.getState().isLocked ? "Unlock Controls" : "Lock Controls (Host Only)"}>
+                  <IconButton 
+                    variant={useRoomStore.getState().isLocked ? "solid" : "ghost"} 
+                    color={useRoomStore.getState().isLocked ? "red" : "gray"}
+                    onClick={() => send({ type: 'toggle-lock' })}
+                    radius="full"
+                  >
+                    {useRoomStore.getState().isLocked ? <div style={{ fontSize: 14 }}>🔒</div> : <div style={{ fontSize: 14 }}>🔓</div>}
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Flex align="center" gap="2">
               <Card size="1" variant="surface" style={{ 
                 padding: '4px 16px', 
                 backgroundColor: 'var(--orange-a3)',
@@ -218,6 +231,7 @@ function App() {
           }}
         >
           <VideoPlayer onSync={handleSync} />
+          <ReactionOverlay />
           
           {/* Controls Overlay */}
           <AnimatePresence>
@@ -260,6 +274,26 @@ function App() {
                     <Text size="2" weight="bold">Session Active</Text>
                     <Text size="1" color="gray">Host: {useRoomStore.getState().hostId === userId ? 'You' : 'Participant'}</Text>
                   </Box>
+                  
+                  <Separator orientation="vertical" size="1" />
+                  
+                  {/* Reactions Bar */}
+                  <Flex gap="2">
+                    {['❤️', '🔥', '😂', '😮', '👏'].map(emoji => (
+                      <IconButton 
+                        key={emoji}
+                        variant="ghost" 
+                        size="2" 
+                        radius="full"
+                        onClick={() => send({ type: 'reaction', emoji })}
+                        style={{ cursor: 'pointer', transition: 'transform 0.1s' }}
+                        onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.8)'}
+                        onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        {emoji}
+                      </IconButton>
+                    ))}
+                  </Flex>
                 </Flex>
 
                 <Flex gap="3">

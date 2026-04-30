@@ -19,8 +19,11 @@ export function useWebSocket() {
       case 'sync':
         updateVideoState(data.payload);
         break;
-      case 'chat':
+      case "chat":
         window.dispatchEvent(new CustomEvent('playwise-chat', { detail: data.payload }));
+        break;
+      case 'reaction':
+        window.dispatchEvent(new CustomEvent('playwise-reaction', { detail: data.payload }));
         break;
       case 'webrtc-offer':
       case 'webrtc-answer':

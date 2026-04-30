@@ -9,10 +9,11 @@ interface VideoPlayerProps {
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
-  const { videoState, hostId, userId } = useRoomStore();
+  const { videoState, hostId, userId, isLocked } = useRoomStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
   const isHost = userId === hostId;
+  const canControl = isHost || !isLocked;
 
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -46,7 +47,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
           videoId: videoId,
           playerVars: {
             autoplay: 0,
-            controls: isHost ? 1 : 0,
+            controls: canControl ? 1 : 0,
             rel: 0,
             modestbranding: 1,
             origin: window.location.origin,
@@ -62,7 +63,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
               }
             },
             onStateChange: (event: any) => {
-              if (isHost && isMounted) {
+              if (canControl && isMounted) {
                 const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
                 onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
               }
@@ -189,10 +190,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         <video
           ref={videoRef}
           style={{ width: '100%', height: '100%' }}
-          controls={isHost}
-          onPlay={() => isHost && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true })}
-          onPause={() => isHost && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false })}
-          onSeeked={() => isHost && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused })}
+          controls={canControl}
+          onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true })}
+          onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false })}
+          onSeeked={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused })}
         />
       )}
 

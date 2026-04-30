@@ -11,6 +11,7 @@ class RoomService {
       id,
       hostId,
       users: [host],
+      isLocked: false,
       videoState: {
         sourceType: "youtube",
         currentTime: 0,
@@ -60,6 +61,13 @@ class RoomService {
       ...state,
       lastUpdated: Date.now(),
     };
+    return room;
+  }
+
+  toggleLock(roomId: string, userId: string): Room | null {
+    const room = this.rooms.get(roomId);
+    if (!room || room.hostId !== userId) return null;
+    room.isLocked = !room.isLocked;
     return room;
   }
 

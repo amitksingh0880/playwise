@@ -83,12 +83,31 @@ export function setupWS(server: Server) {
 
       case "sync": {
         if (!ws.roomId) return;
-        const room = roomService.updateVideoState(ws.roomId, event.state);
-        if (room) {
+        const room = roomService.getRoom(ws.roomId);
+        // If locked, only host can sync
+        if (room?.isLocked && room.hostId !== ws.userId) {
+          console.log("Blocked non-host sync in locked room");
+          return;
+        }
+        
+        const updatedRoom = roomService.updateVideoState(ws.roomId, event.state);
+        if (updatedRoom) {
           broadcastToRoom(ws.roomId, {
             type: "sync",
-            payload: room.videoState,
+            payload: updatedRoom.videoState,
           }, ws.userId);
+        }
+        break;
+      }
+
+      case "toggle-lock": {
+        if (!ws.roomId) return;
+        const room = roomService.toggleLock(ws.roomId, ws.userId);
+        if (room) {
+          broadcastToRoom(ws.roomId, {
+            type: "room-state",
+            payload: room,
+          });
         }
         break;
       }
@@ -98,6 +117,15 @@ export function setupWS(server: Server) {
         broadcastToRoom(ws.roomId, {
           type: "chat",
           payload: { userId: ws.userId, message: event.message },
+        });
+        break;
+      }
+
+      case "reaction": {
+        if (!ws.roomId) return;
+        broadcastToRoom(ws.roomId, {
+          type: "reaction",
+          payload: { userId: ws.userId, emoji: event.emoji },
         });
         break;
       }
