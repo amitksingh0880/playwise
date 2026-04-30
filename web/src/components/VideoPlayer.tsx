@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRoomStore } from '../features/room/RoomStore';
-import { Box, Card, Flex, Text, Heading } from '@radix-ui/themes';
-import { VideoIcon } from '@radix-ui/react-icons';
+import { Box, Card, Flex, Text, Heading, Button, Callout } from '@radix-ui/themes';
+import { VideoIcon, InfoCircledIcon } from '@radix-ui/react-icons';
 import { motion } from 'framer-motion';
 
 interface VideoPlayerProps {
@@ -14,6 +14,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
   const playerRef = useRef<any>(null);
   const isHost = userId === hostId;
   const canControl = isHost || !isLocked;
+  const [localFileLoaded, setLocalFileLoaded] = useState(false);
 
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -148,13 +149,31 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
     }
   }, [videoState, isHost]);
 
-  const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>, isParticipant = false) => {
     const file = e.target.files?.[0];
     if (file && videoRef.current) {
       const url = URL.createObjectURL(file);
       videoRef.current.src = url;
+      setLocalFileLoaded(true);
+      // Host broadcasts the filename so participants know which file to load
+      if (isHost && !isParticipant) {
+        onSync({ 
+          currentTime: 0, 
+          isPlaying: false,
+          // @ts-ignore — extend sync state with filename hint
+          localFileName: file.name 
+        });
+      }
+      // Immediately seek to current synced time
+      if (!isHost) {
+        videoRef.current.currentTime = videoState.currentTime;
+        if (videoState.isPlaying) videoRef.current.play().catch(() => {});
+      }
     }
   };
+
+  const localFileName = (videoState as any).localFileName;
+  const showParticipantPrompt = !isHost && videoState.sourceType === 'local' && !localFileLoaded && localFileName;
 
   return (
     <Box width="100%" height="100%" style={{ backgroundColor: 'black', position: 'relative', overflow: 'hidden' }}>
@@ -197,10 +216,48 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         />
       )}
 
+      {/* Participant prompt to load the same local file */}
+      {showParticipantPrompt && (
+        <Box 
+          position="absolute" 
+          style={{ inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Flex direction="column" align="center" gap="4" style={{ maxWidth: 400, textAlign: 'center', padding: 32 }}>
+            <InfoCircledIcon width={40} height={40} color="var(--orange-9)" />
+            <Heading size="4">Load Your Copy of the File</Heading>
+            <Text size="2" color="gray">
+              The host is playing: <strong style={{ color: 'var(--orange-11)' }}>{localFileName}</strong>
+              <br /><br />
+              Please select the same file from your device to join the synchronized playback.
+            </Text>
+            <Card style={{ padding: 16, width: '100%', textAlign: 'center', cursor: 'pointer', border: '1px dashed var(--orange-a6)', background: 'var(--orange-a2)' }}>
+              <label style={{ cursor: 'pointer' }}>
+                <Text size="2" weight="bold" style={{ color: 'var(--orange-11)' }}>📂 Click to select the file</Text>
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleLocalFile(e, false)}
+                />
+              </label>
+            </Card>
+          </Flex>
+        </Box>
+      )}
+
+      {/* Host file picker (top-left corner) */}
       {isHost && videoState.sourceType === 'local' && (
         <Box position="absolute" top="4" left="4" style={{ zIndex: 10 }}>
           <Card size="1">
-            <input type="file" accept="video/*" onChange={handleLocalFile} style={{ fontSize: '12px' }} />
+            <Flex align="center" gap="2">
+              <Text size="1" color="gray">📂</Text>
+              <label style={{ cursor: 'pointer' }}>
+                <Text size="1" weight="bold" style={{ color: 'var(--orange-11)' }}>
+                  {localFileLoaded ? '✅ File loaded — change file' : 'Select local video file'}
+                </Text>
+                <input type="file" accept="video/*" onChange={handleLocalFile} style={{ display: 'none' }} />
+              </label>
+            </Flex>
           </Card>
         </Box>
       )}
