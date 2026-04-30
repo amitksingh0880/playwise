@@ -43,12 +43,15 @@ export const useRoomStore = create<RoomState>((set) => ({
   userName: localStorage.getItem('playwise_userName') || 'Guest',
 
   setRoom: (room) => {
-    // Deduplicate users by ID just in case
-    const uniqueUsers = room.users.reduce((acc: User[], current: User) => {
-      const x = acc.find(item => item.id === current.id);
-      if (!x) return acc.concat([current]);
-      else return acc;
-    }, []);
+    // Deduplicate: first by ID, then by name (in case two sockets sent same user)
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    const uniqueUsers = (room.users as User[]).filter((u) => {
+      if (seenIds.has(u.id) || seenNames.has(u.name.toLowerCase())) return false;
+      seenIds.add(u.id);
+      seenNames.add(u.name.toLowerCase());
+      return true;
+    });
 
     set({
       roomId: room.id,

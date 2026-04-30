@@ -41,7 +41,18 @@ export function setupWS(server: Server) {
       case "join": {
         const { roomId, name, userId } = event;
         
-        // If user is already in a room, leave it first to prevent duplicates
+        // Kick any existing WS connections for the same userId to prevent duplicates
+        wss.clients.forEach((client: any) => {
+          if (client !== ws && client.userId === userId) {
+            console.log(`Closing stale connection for userId: ${userId}`);
+            if (client.roomId) {
+              roomService.leaveRoom(client.roomId, client.userId);
+            }
+            client.terminate();
+          }
+        });
+
+        // If this socket was already in a room, leave it first
         if (ws.roomId && ws.userId) {
           roomService.leaveRoom(ws.roomId, ws.userId);
         }
