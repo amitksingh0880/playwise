@@ -1,14 +1,14 @@
 import { Room, User, VideoState } from "../types";
-import { nanoid } from "nanoid";
 
 class RoomService {
   private rooms: Map<string, Room> = new Map();
 
-  createRoom(hostId: string, hostName: string): Room {
-    const roomId = nanoid(10);
-    const host: User = { id: hostId, name: hostName, roomId };
+  createRoom(hostId: string, hostName: string, roomId?: string): Room {
+    // Use the provided roomId (from client), or generate a fallback
+    const id = roomId || Math.random().toString(36).substr(2, 6).toUpperCase();
+    const host: User = { id: hostId, name: hostName, roomId: id };
     const room: Room = {
-      id: roomId,
+      id,
       hostId,
       users: [host],
       videoState: {
@@ -18,7 +18,7 @@ class RoomService {
         lastUpdated: Date.now(),
       },
     };
-    this.rooms.set(roomId, room);
+    this.rooms.set(id, room);
     return room;
   }
 

@@ -51,7 +51,8 @@ export function setupWS(server: Server) {
 
         let room = roomService.getRoom(roomId);
         if (!room) {
-          room = roomService.createRoom(ws.userId, name);
+          // Create room WITH the requested roomId so others can join using the same code
+          room = roomService.createRoom(ws.userId, name, roomId);
         } else {
           roomService.joinRoom(roomId, ws.userId, name);
         }
