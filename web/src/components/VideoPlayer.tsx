@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRoomStore } from '../features/room/RoomStore';
 import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { Video, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
+import Lottie from 'lottie-react';
+import spinAnimation from '../../public/Spin.json';
 
 interface VideoPlayerProps {
   onSync: (state: { currentTime: number; isPlaying: boolean }) => void;
@@ -177,15 +179,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
     <div className="w-full h-full bg-black relative overflow-hidden flex items-center justify-center">
       {showPlaceholder ? (
         <div className="flex flex-col items-center justify-center gap-6 h-full">
-          <motion.div
-            animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.8, 0.5] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <div className="w-32 h-32 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-[0_0_50px_rgba(249,115,22,0.1)]">
-              <Video className="w-12 h-12 text-zinc-500" />
-            </div>
-          </motion.div>
-          <div className="text-center space-y-2">
+          <div className="w-64 h-64">
+            <Lottie animationData={spinAnimation} loop={true} />
+          </div>
+          <div className="text-center space-y-2 mt-[-20px]">
             <h3 className="text-2xl font-bold text-zinc-300 tracking-tight">Ready for the Show?</h3>
             <p className="text-zinc-500 font-medium">Waiting for the host to start a video...</p>
           </div>
