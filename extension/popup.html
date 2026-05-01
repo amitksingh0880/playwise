@@ -46,6 +46,24 @@
     #name-input:focus { border-color: rgba(192,38,211,0.5); }
     #name-input::placeholder { color: rgba(255,255,255,0.3); }
 
+    .avatar-picker {
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px;
+      scrollbar-width: none;
+    }
+    .avatar-picker::-webkit-scrollbar { display: none; }
+    .avatar-item {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; cursor: pointer; transition: all 0.2s;
+    }
+    .avatar-item:hover { background: rgba(255,255,255,0.1); }
+    .avatar-item.selected { 
+      background: rgba(192,38,211,0.2); 
+      border-color: #c026d3; 
+      box-shadow: 0 0 10px rgba(192,38,211,0.4); 
+    }
+
     .btn {
       width: 100%; padding: 11px 14px; border: none; border-radius: 10px;
       font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
@@ -127,7 +145,14 @@
 
   <div class="body">
     <div id="join-view">
-      <input id="name-input" placeholder="Your nickname" />
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+        <div id="avatar-preview" style="width:48px; height:48px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:24px;">🤖</div>
+        <input id="name-input" placeholder="Your nickname" style="flex:1;" />
+      </div>
+      
+      <div class="avatar-picker" id="avatar-picker">
+        <!-- populated by js -->
+      </div>
       <button class="btn" id="create-btn">✦ Create Room</button>
       <div class="divider">or join</div>
       <div class="join-row">

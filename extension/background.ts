@@ -9,6 +9,7 @@ let socket: WebSocket | null = null;
 let currentRoomId: string | null = null;
 let extensionUserId: string | null = null;
 let extensionUserName: string = "Extension User";
+let extensionUserAvatar: string = "🤖";
 let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 let retryDelay = 3000;
 const MAX_RETRY_DELAY = 30000;
@@ -30,10 +31,11 @@ function connect() {
         type: "join",
         roomId: currentRoomId,
         userId: extensionUserId,
-        name: extensionUserName
+        name: extensionUserName,
+        avatarUrl: extensionUserAvatar
       }));
     }
-    broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId });
+    broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId, avatar: extensionUserAvatar });
   };
 
   socket.onmessage = (event) => {
@@ -43,7 +45,6 @@ function connect() {
       if (data.type === "sync") {
         broadcastToContentScript({ type: "UPDATE_VIDEO", state: data.payload });
       } else if (data.type === "room-state") {
-        // Full room state broadcast to content script for UI updates
         broadcastToContentScript({ type: "ROOM_STATE", payload: data.payload });
       } else if (data.type === "chat") {
         broadcastToContentScript({ type: "PW_CHAT", payload: data.payload });
@@ -90,15 +91,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null; }
     currentRoomId = msg.roomId;
     extensionUserName = msg.name || "Playwise User";
+    extensionUserAvatar = msg.avatar || "🤖";
     if (!extensionUserId) {
       extensionUserId = `ext_${Math.random().toString(36).substr(2, 9)}`;
     }
     retryDelay = 3000;
-    chrome.storage.local.set({ currentRoomId: msg.roomId, userName: extensionUserName, userId: extensionUserId });
+    chrome.storage.local.set({ 
+      currentRoomId: msg.roomId, 
+      userName: extensionUserName, 
+      userId: extensionUserId,
+      userAvatar: extensionUserAvatar
+    });
 
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "join", roomId: msg.roomId, userId: extensionUserId, name: extensionUserName }));
-      broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId });
+      socket.send(JSON.stringify({ 
+        type: "join", 
+        roomId: msg.roomId, 
+        userId: extensionUserId, 
+        name: extensionUserName,
+        avatarUrl: extensionUserAvatar 
+      }));
+      broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId, avatar: extensionUserAvatar });
     } else {
       connect();
     }
@@ -133,6 +146,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       roomId: currentRoomId,
       userId: extensionUserId,
       userName: extensionUserName,
+      userAvatar: extensionUserAvatar,
       connected: socket?.readyState === WebSocket.OPEN
     });
   }
