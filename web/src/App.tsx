@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { VideoPlayer } from './components/VideoPlayer';
 import { Chat } from './components/Chat';
 import { ParticipantGrid } from './components/ParticipantGrid';
 import { ReactionOverlay } from './components/ReactionOverlay';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useRoomStore } from './features/room/RoomStore';
+import type { VideoState } from './features/room/RoomStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,43 +15,86 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { 
-  Settings2, 
-  Users, 
   LogOut, 
   Maximize2, 
   Minimize2,
   Wand2,
   Copy,
+  MicOff,
+  VideoOff,
+  Settings2,
   Video,
-  Play
+  Bookmark,
+  Tv,
+  Play,
+  Mic,
+  Lock,
+  Unlock
 } from 'lucide-react';
+import { Polls } from './components/Polls';
+import { VideoPlayer } from './components/VideoPlayer';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 
 function App() {
-  const { roomId, userId, userName, resetRoom } = useRoomStore();
+  const { roomId, userId, userName, userColor, resetRoom } = useRoomStore();
   const { send } = useWebSocket();
-  const { streams } = useWebRTC(send);
+  const { streams, isMuted, isCameraOff, toggleMute, toggleCamera } = useWebRTC(send);
   const [roomInput, setRoomInput] = useState('');
   const [nameInput, setNameInput] = useState(userName || '');
+  const [passwordInput, setPasswordInput] = useState('');
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sourceUrlInput, setSourceUrlInput] = useState('');
   const [showSourceDialog, setShowSourceDialog] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [theaterMode, setTheaterMode] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
+  const [selectedAvatar, setSelectedAvatar] = useState(useRoomStore.getState().userAvatar || '🤖');
+  const avatars = ['🤖', '🐱', '🥷', '👽', '👨‍🚀', '🦄', '🐲', '👻'];
+  const [bookmarks, setBookmarks] = useState<{ time: number; label: string }[]>(() => {
+    const saved = localStorage.getItem(`playwise_bookmarks_${roomId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    if (roomId) {
+      localStorage.setItem(`playwise_bookmarks_${roomId}`, JSON.stringify(bookmarks));
+    }
+  }, [bookmarks, roomId]);
+
+  // Auto-fill room from URL
+  useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      setRoomInput(roomParam.toUpperCase());
+    }
+  });
+
+  useState(() => {
+    const handler = (e: any) => {
+      setError(e.detail.message);
+      setTimeout(() => setError(null), 5000);
+    };
+    window.addEventListener('playwise-error', handler);
+    return () => window.removeEventListener('playwise-error', handler);
+  });
 
   const handleJoin = () => {
     if (roomInput && nameInput) {
-      useRoomStore.getState().setUser(userId!, nameInput);
-      send({ type: 'join', roomId: roomInput, name: nameInput });
+      useRoomStore.getState().setUser(userId!, nameInput, userColor || undefined, selectedAvatar);
+      send({ type: 'join', roomId: roomInput, name: nameInput, password: passwordInput, color: userColor || undefined, avatarUrl: selectedAvatar });
     }
   };
 
   const handleCreate = () => {
     if (nameInput) {
       const newRoomId = Math.random().toString(36).substr(2, 6).toUpperCase();
-      useRoomStore.getState().setUser(userId!, nameInput);
-      send({ type: 'join', roomId: newRoomId, name: nameInput });
+      useRoomStore.getState().setUser(userId!, nameInput, userColor || undefined, selectedAvatar);
+      send({ type: 'join', roomId: newRoomId, name: nameInput, password: passwordInput, color: userColor || undefined, avatarUrl: selectedAvatar });
     }
   };
 
-  const handleSync = (state: { currentTime: number; isPlaying: boolean }) => {
+  const handleSync = (state: Partial<VideoState>) => {
     send({ type: 'sync', state });
   };
 
@@ -71,6 +114,26 @@ function App() {
       } 
     });
     setShowSourceDialog(false);
+  };
+
+  const handleCopyInvite = () => {
+    const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    navigator.clipboard.writeText(url);
+  };
+
+  const handleRaiseHand = () => {
+    send({ type: 'reaction', emoji: '✋' });
+  };
+
+  const handleAddBookmark = () => {
+    const { videoState } = useRoomStore.getState();
+    const time = videoState.currentTime;
+    const label = `Mark at ${Math.floor(time / 60)}:${Math.floor(time % 60).toString().padStart(2, '0')}`;
+    setBookmarks([...bookmarks, { time, label }]);
+  };
+
+  const handleJumpToBookmark = (time: number) => {
+    handleSync({ currentTime: time });
   };
 
   if (!roomId) {
@@ -107,15 +170,60 @@ function App() {
                 <p className="text-slate-400 font-medium tracking-widest uppercase text-sm">Next-Gen Watch Party</p>
               </div>
 
-              <div className="space-y-6 mt-4">
-                <div className="space-y-2 group">
+                <div className="space-y-6 mt-4">
+                <div className="flex flex-col items-center gap-6 mb-10">
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="w-32 h-32 rounded-full bg-gradient-to-br from-fuchsia-500/20 to-cyan-500/20 flex items-center justify-center border-2 border-white/10 shadow-[0_0_50px_rgba(192,38,211,0.2)] relative group overflow-hidden"
+                  >
+                    <span className="text-6xl drop-shadow-2xl z-10">{selectedAvatar}</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </motion.div>
+
+                  <div className="flex flex-wrap justify-center gap-3 max-w-xs">
+                    {avatars.map((av) => (
+                      <motion.button
+                        key={av}
+                        whileHover={{ scale: 1.1, y: -2 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setSelectedAvatar(av)}
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all border ${
+                          selectedAvatar === av 
+                            ? 'bg-fuchsia-500/20 border-fuchsia-500 shadow-[0_0_20px_rgba(192,38,211,0.4)]' 
+                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        {av}
+                      </motion.button>
+                    ))}
+                  </div>
+
+                  <div className="w-full space-y-4">
+                    <Input 
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      placeholder="YOUR ALIAS"
+                      className="bg-black/40 border-white/10 focus-visible:ring-fuchsia-500 focus-visible:border-fuchsia-500 h-14 text-center font-black tracking-widest text-lg text-white rounded-xl placeholder:text-slate-700"
+                    />
+                  </div>
                   <Input 
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
-                    placeholder="Enter your nickname"
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="Room Password (Optional)"
                     className="bg-black/50 border-white/10 focus-visible:ring-fuchsia-500 focus-visible:border-fuchsia-500 h-14 text-lg text-center font-bold text-white placeholder:text-slate-600 rounded-xl transition-all shadow-inner"
                   />
                 </div>
+
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="p-3 bg-rose-500/20 border border-rose-500/50 rounded-xl text-rose-400 text-sm font-bold text-center"
+                  >
+                    {error}
+                  </motion.div>
+                )}
 
                 <div className="space-y-6">
                   <Button 
@@ -156,11 +264,11 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-screen bg-[#020205] text-slate-100 overflow-hidden font-sans">
+      <div className={`flex flex-col h-screen ${theaterMode ? 'bg-black' : 'bg-[#020205]'} text-slate-100 overflow-hidden font-sans transition-colors duration-1000`}>
         {/* Floating Ultra-Premium Header */}
         <motion.header
           initial={{ y: -100 }}
-          animate={{ y: 0 }}
+          animate={{ y: theaterMode ? -120 : 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 120 }}
           className="absolute top-6 left-6 right-6 z-50 pointer-events-none"
         >
@@ -183,14 +291,14 @@ function App() {
             <div className="flex items-center gap-5">
               {useRoomStore.getState().hostId === userId && (
                 <Tooltip>
-                  <TooltipTrigger asChild>
+                  <TooltipTrigger>
                     <Button 
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      className={`h-11 w-11 rounded-full border-white/10 transition-all duration-300 ${useRoomStore.getState().isLocked ? 'bg-fuchsia-500/20 border-fuchsia-500/50 shadow-[0_0_20px_rgba(192,38,211,0.4)]' : 'bg-black/40 hover:bg-white/10'}`}
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${useRoomStore.getState().isLocked ? 'bg-amber-500 text-black border-amber-400' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
                       onClick={() => send({ type: 'toggle-lock' })}
                     >
-                      <span className="text-lg">{useRoomStore.getState().isLocked ? '🔒' : '🔓'}</span>
+                      {useRoomStore.getState().isLocked ? <Lock className="h-5 w-5" /> : <Unlock className="h-5 w-5" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 border-white/10 font-bold">
@@ -199,23 +307,68 @@ function App() {
                 </Tooltip>
               )}
               
-              <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full pl-5 pr-1.5 py-1.5 shadow-inner">
-                <span className="text-sm font-mono font-bold tracking-[0.2em] text-fuchsia-400">
+              <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full px-5 py-2 shadow-inner">
+                <span className="text-[10px] font-black tracking-[0.2em] text-fuchsia-500 uppercase">Room</span>
+                <span className="text-sm font-mono font-bold text-white">
                   {roomId}
                 </span>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-fuchsia-500/20 text-slate-400 hover:text-fuchsia-400 transition-colors" onClick={() => navigator.clipboard.writeText(roomId || '')}>
+                  <TooltipTrigger>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-white/20 text-slate-300 hover:text-white transition-colors ml-2" onClick={handleCopyInvite}>
                       <Copy className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 border-white/10"><p className="font-bold">Copy Room Code</p></TooltipContent>
+                  <TooltipContent className="bg-slate-900 border-white/10"><p className="font-bold">Copy Invite Link</p></TooltipContent>
+                </Tooltip>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isMuted ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                      onClick={toggleMute}
+                    >
+                      {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>{isMuted ? "Unmute Mic" : "Mute Mic"}</p></TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isCameraOff ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                      onClick={toggleCamera}
+                    >
+                      {isCameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>{isCameraOff ? "Turn Camera On" : "Turn Camera Off"}</p></TooltipContent>
                 </Tooltip>
               </div>
 
               <div className="w-[1px] h-8 bg-white/10 mx-2" />
               
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-black/40 border border-white/10 text-slate-400 hover:text-white hover:bg-rose-500 hover:border-rose-500 hover:shadow-[0_0_20px_rgba(244,63,94,0.5)] transition-all duration-300" onClick={resetRoom}>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className={`h-11 w-11 rounded-full border transition-all duration-300 ${theaterMode ? 'bg-fuchsia-600 text-white border-fuchsia-500 shadow-[0_0_20px_rgba(192,38,211,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                    onClick={() => setTheaterMode(!theaterMode)}
+                  >
+                    <Tv className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>Theater Mode</p></TooltipContent>
+              </Tooltip>
+
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300" onClick={resetRoom}>
                 <LogOut className="h-5 w-5 ml-1" />
               </Button>
             </div>
@@ -270,13 +423,36 @@ function App() {
                           {emoji}
                         </Button>
                       ))}
+                      <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-full text-xl hover:bg-white/10 hover:scale-125 hover:-translate-y-2 transition-all duration-300 ease-out active:scale-95 shadow-sm"
+                            onClick={handleRaiseHand}
+                          >
+                            ✋
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>Raise Hand</p></TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-3 pr-2 relative z-10">
                     <Tooltip>
-                      <TooltipTrigger asChild>
+                      <TooltipTrigger>
+                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-black/50 border-white/10 hover:bg-emerald-500 hover:border-emerald-500 hover:text-white text-slate-300 transition-all duration-300 hover:shadow-[0_0_20px_rgba(16,185,129,0.5)]" onClick={handleAddBookmark}>
+                          <Bookmark className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>Bookmark Moment</p></TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger>
                         <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-black/50 border-white/10 hover:bg-fuchsia-500 hover:border-fuchsia-500 hover:text-white text-slate-300 transition-all duration-300 hover:shadow-[0_0_20px_rgba(192,38,211,0.5)]" onClick={() => setShowSourceDialog(true)}>
                           <Video className="h-5 w-5" />
                         </Button>
@@ -285,7 +461,7 @@ function App() {
                     </Tooltip>
 
                     <Tooltip>
-                      <TooltipTrigger asChild>
+                      <TooltipTrigger>
                         <Button 
                           variant="outline" 
                           size="icon" 
@@ -326,16 +502,44 @@ function App() {
                 <div className="w-2 h-6 bg-cyan-500 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
                 <h2 className="text-lg font-black text-white uppercase tracking-widest drop-shadow-md">The Audience</h2>
               </div>
-              <ParticipantGrid streams={streams} />
+                <ParticipantGrid streams={streams} send={send} />
             </div>
             
             <div className="px-6 py-4">
               <Separator className="bg-white/10" />
             </div>
             
-            <div className="flex-1 overflow-hidden px-4 flex flex-col">
-              <Chat onSendMessage={handleChat} />
+            <div className="flex-1 overflow-hidden px-4 flex flex-col pt-4">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+                <TabsList className="bg-white/5 border border-white/10 rounded-xl p-1 mb-6">
+                  <TabsTrigger value="chat" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500 data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all">Chat</TabsTrigger>
+                  <TabsTrigger value="polls" className="flex-1 rounded-lg data-[state=active]:bg-fuchsia-500 data-[state=active]:text-white font-black uppercase text-[10px] tracking-widest transition-all">Polls</TabsTrigger>
+                </TabsList>
+                <TabsContent value="chat" className="flex-1 overflow-hidden mt-0">
+                  <Chat onSendMessage={handleChat} />
+                </TabsContent>
+                <TabsContent value="polls" className="flex-1 overflow-hidden mt-0">
+                  <Polls send={send} />
+                </TabsContent>
+              </Tabs>
             </div>
+            
+            {bookmarks.length > 0 && (
+              <div className="px-6 py-4 bg-black/40 border-t border-white/10">
+                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Bookmarks</h3>
+                 <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar no-scrollbar">
+                    {bookmarks.map((b, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleJumpToBookmark(b.time)}
+                        className="whitespace-nowrap px-3 py-1.5 bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/50 rounded-lg text-[10px] font-bold text-slate-300 hover:text-emerald-400 transition-all"
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                 </div>
+              </div>
+            )}
           </motion.div>
         </div>
 

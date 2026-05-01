@@ -11,6 +11,7 @@ interface Message {
   id: string;
   userId: string;
   userName: string;
+  userColor?: string;
   message: string;
   timestamp: number;
 }
@@ -23,14 +24,14 @@ export const Chat: React.FC<{ onSendMessage: (msg: string) => void }> = ({ onSen
 
   useEffect(() => {
     const handleChat = (e: any) => {
-      const { userId, message } = e.detail;
-      const user = users.find((u) => u.id === userId);
+      const { userId, userName, userColor, message } = e.detail;
       setMessages((prev) => [
         ...prev,
         { 
           id: Math.random().toString(36).substr(2, 9),
           userId, 
-          userName: user?.name || 'Guest', 
+          userName: userName || 'Guest', 
+          userColor,
           message, 
           timestamp: Date.now() 
         },
@@ -77,8 +78,8 @@ export const Chat: React.FC<{ onSendMessage: (msg: string) => void }> = ({ onSen
                   transition={{ duration: 0.4, type: "spring", stiffness: 200, damping: 20 }}
                 >
                   <div className="flex gap-4 items-start">
-                    <Avatar className="w-10 h-10 border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-                      <AvatarFallback className="bg-gradient-to-br from-fuchsia-600 to-cyan-600 text-white text-sm font-black">
+                    <Avatar className="w-10 h-10 border-2 shadow-lg" style={{ borderColor: msg.userColor || '#06b6d4' }}>
+                      <AvatarFallback className="bg-slate-950 font-black text-sm" style={{ color: msg.userColor || '#06b6d4' }}>
                         {msg.userName.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>

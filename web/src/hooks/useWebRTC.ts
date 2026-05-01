@@ -6,11 +6,13 @@ const ICE_SERVERS = {
 };
 
 export function useWebRTC(sendSignal: (data: any) => void) {
-  const { userId, users, roomId } = useRoomStore();
+  const { userId, users, roomId, isJoined } = useRoomStore();
   const [streams, setStreams] = useState<Record<string, MediaStream>>({});
   const peers = useRef<Record<string, RTCPeerConnection>>({});
   const localStream = useRef<MediaStream | null>(null);
-  const cameraRequesting = useRef(false); // prevent concurrent getUserMedia calls
+  const cameraRequesting = useRef(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
 
   // 1. Initialize camera — reads userId from store directly to avoid stale closure
   const initCamera = useCallback(async () => {
@@ -42,14 +44,34 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     } finally {
       cameraRequesting.current = false;
     }
-  }, []); // No userId dep — reads from store directly
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (localStream.current) {
+      const audioTrack = localStream.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = isMuted;
+        setIsMuted(!isMuted);
+      }
+    }
+  }, [isMuted]);
+
+  const toggleCamera = useCallback(() => {
+    if (localStream.current) {
+      const videoTrack = localStream.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = isCameraOff;
+        setIsCameraOff(!isCameraOff);
+      }
+    }
+  }, [isCameraOff]);
 
   // 2. Initialize camera immediately when the user enters a room (don't wait for peers)
   useEffect(() => {
-    if (roomId && userId) {
+    if (isJoined && roomId && userId) {
       initCamera();
     }
-  }, [roomId, userId, initCamera]);
+  }, [roomId, userId, isJoined, initCamera]);
 
   // 2. Create connection to a peer
   const connectToPeer = useCallback(async (targetId: string, isInitiator: boolean) => {
@@ -198,5 +220,5 @@ export function useWebRTC(sendSignal: (data: any) => void) {
     syncPeers();
   }, [users, userId, roomId, initCamera, connectToPeer]);
 
-  return { streams };
+  return { streams, isMuted, isCameraOff, toggleMute, toggleCamera };
 }

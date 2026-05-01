@@ -3,13 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomStore } from '../features/room/RoomStore';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ShieldCheck, Shield, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ParticipantGridProps {
   streams: Record<string, MediaStream>;
+  send?: (data: any) => void;
 }
 
-export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => {
-  const { users, userId } = useRoomStore();
+export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams, send }) => {
+  const { users, userId, hostId } = useRoomStore();
+
+  const handlePromote = (targetId: string, role: "mod" | "user") => {
+    if (send) send({ type: 'update-role', targetId, role });
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -27,18 +34,37 @@ export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams }) => 
               {streams[user.id] ? (
                 <VideoFeed stream={streams[user.id]} isLocal={user.id === userId} />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-900/50">
-                  <Avatar className="h-20 w-20 border-2 border-fuchsia-500 shadow-[0_0_20px_rgba(192,38,211,0.5)]">
-                    <AvatarFallback className="bg-slate-950 text-fuchsia-400 font-black text-2xl">
-                      {user.name.charAt(0).toUpperCase()}
+                <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                  <Avatar className="h-24 w-24 border-2 shadow-[0_0_40px_rgba(0,0,0,0.5)]" style={{ borderColor: user.color || '#c026d3' }}>
+                    <AvatarFallback className="bg-slate-900 font-black text-4xl" style={{ color: user.color || '#c026d3' }}>
+                      {user.avatarUrl || user.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </div>
               )}
               
-              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2.5 z-30 shadow-lg">
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)] animate-pulse" />
-                <span className="text-xs font-black tracking-wider uppercase text-white drop-shadow-md">{user.name}</span>
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none z-30">
+                <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg group-hover:bg-fuchsia-500/20 group-hover:border-fuchsia-500/30 transition-all">
+                  <div className={`w-1.5 h-1.5 rounded-full ${streams[user.id] ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                  <span className="text-[10px] font-black tracking-tight text-white uppercase truncate max-w-[80px]">
+                    {user.name}
+                  </span>
+                  {user.role !== 'user' && (
+                    <Badge variant="ghost" className="h-4 px-1 bg-white/10 text-[8px] font-black uppercase text-cyan-400 border-none">
+                      {user.role}
+                    </Badge>
+                  )}
+                </div>
+                
+                {isHost && user.id !== userId && user.role !== 'mod' && (
+                  <Button 
+                    size="icon"
+                    className="h-6 w-6 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all pointer-events-auto opacity-0 group-hover:opacity-100"
+                    onClick={() => handlePromote(user.id, 'mod')}
+                  >
+                    <Star className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </Card>
           </motion.div>

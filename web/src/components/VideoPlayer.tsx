@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRoomStore } from '../features/room/RoomStore';
-import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Info } from 'lucide-react';
 import Lottie from 'lottie-react';
@@ -8,15 +7,18 @@ import spinAnimation from '../assets/Spin.json';
 import Hls from 'hls.js';
 
 interface VideoPlayerProps {
-  onSync: (state: { currentTime: number; isPlaying: boolean }) => void;
+  onSync: (state: { currentTime: number; isPlaying: boolean; playbackRate?: number }) => void;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
-  const { videoState, hostId, userId, isLocked } = useRoomStore();
+  const { videoState, hostId, userId, isLocked, users } = useRoomStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
+  
+  const currentUser = users.find(u => u.id === userId);
   const isHost = userId === hostId;
-  const canControl = isHost || !isLocked;
+  const isMod = currentUser?.role === 'mod';
+  const canControl = isHost || isMod || !isLocked;
   const [localFileLoaded, setLocalFileLoaded] = useState(false);
 
   const getYouTubeId = (url: string) => {
@@ -64,12 +66,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
                 event.target.seekTo(videoState.currentTime, true);
                 if (videoState.isPlaying) event.target.playVideo();
                 else event.target.pauseVideo();
+                event.target.setPlaybackRate(videoState.playbackRate || 1.0);
               }
             },
             onStateChange: (event: any) => {
               if (canControl && isMounted) {
                 const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
-                onSync({ currentTime: playerRef.current.getCurrentTime(), isPlaying });
+                onSync({ 
+                  currentTime: playerRef.current.getCurrentTime(), 
+                  isPlaying,
+                  playbackRate: playerRef.current.getPlaybackRate()
+                });
               }
             },
             onError: (err: any) => {
@@ -112,9 +119,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
     const interval = setInterval(() => {
       if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.getCurrentTime === 'function' && playerRef.current.getPlayerState) {
         const currentTime = playerRef.current.getCurrentTime();
-        onSync({ currentTime, isPlaying: playerRef.current.getPlayerState() === 1 });
+        onSync({ 
+          currentTime, 
+          isPlaying: playerRef.current.getPlayerState() === 1,
+          playbackRate: playerRef.current.getPlaybackRate()
+        });
       } else if (videoState.sourceType !== 'youtube' && videoRef.current) {
-        onSync({ currentTime: videoRef.current.currentTime, isPlaying: !videoRef.current.paused });
+        onSync({ 
+          currentTime: videoRef.current.currentTime, 
+          isPlaying: !videoRef.current.paused,
+          playbackRate: videoRef.current.playbackRate
+        });
       }
     }, 3000);
 
@@ -134,6 +149,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         const playerState = playerRef.current.getPlayerState();
         if (videoState.isPlaying && playerState !== 1) playerRef.current.playVideo();
         else if (!videoState.isPlaying && playerState === 1) playerRef.current.pauseVideo();
+
+        if (Math.abs(playerRef.current.getPlaybackRate() - videoState.playbackRate) > 0.01) {
+          playerRef.current.setPlaybackRate(videoState.playbackRate);
+        }
       }
     }
   }, [videoState, isHost]);
@@ -148,6 +167,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         }
         if (videoState.isPlaying) videoRef.current.play().catch(() => {});
         else videoRef.current.pause();
+
+        if (Math.abs(videoRef.current.playbackRate - videoState.playbackRate) > 0.01) {
+          videoRef.current.playbackRate = videoState.playbackRate;
+        }
       }
     }
   }, [videoState, isHost]);
@@ -220,9 +243,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
           ref={videoRef}
           className="w-full h-full object-contain relative z-10 drop-shadow-2xl"
           controls={canControl}
-          onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true })}
-          onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false })}
-          onSeeked={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused })}
+          onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true, playbackRate: videoRef.current!.playbackRate })}
+          onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false, playbackRate: videoRef.current!.playbackRate })}
+          onSeeked={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
+          onRateChange={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
         />
       )}
 

@@ -5,7 +5,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 export function useWebSocket() {
   const socketRef = useRef<WebSocket | null>(null);
-  const { roomId, userName, setRoom, updateVideoState } = useRoomStore();
+  const { roomId, userName, userColor, setRoom, updateVideoState } = useRoomStore();
 
   const handleMessage = useCallback((data: any) => {
     switch (data.type) {
@@ -24,6 +24,9 @@ export function useWebSocket() {
         break;
       case 'reaction':
         window.dispatchEvent(new CustomEvent('playwise-reaction', { detail: data.payload }));
+        break;
+      case 'error':
+        window.dispatchEvent(new CustomEvent('playwise-error', { detail: data.payload }));
         break;
       case 'webrtc-offer':
       case 'webrtc-answer':
@@ -48,7 +51,8 @@ export function useWebSocket() {
           type: 'join', 
           roomId: currentRoomId, 
           userId: useRoomStore.getState().userId,
-          name: useRoomStore.getState().userName || 'Guest' 
+          name: useRoomStore.getState().userName || 'Guest',
+          color: useRoomStore.getState().userColor 
         }));
       }
     };
@@ -90,7 +94,7 @@ export function useWebSocket() {
   useEffect(() => {
     const { userId } = useRoomStore.getState();
     if (roomId && socketRef.current?.readyState === WebSocket.OPEN) {
-      send({ type: 'join', roomId, userId, name: userName || 'Guest' });
+      send({ type: 'join', roomId, userId, name: userName || 'Guest', color: userColor });
     }
   }, [roomId, userName, send]);
 

@@ -1,12 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { roomService } from "../modules/room.service";
-import { WSEvent, User } from "../types";
+import type { WSEvent, User } from "../types";
 import { Server } from "http";
 
 interface ExtendedWebSocket extends WebSocket {
   userId: string;
   roomId?: string;
   name?: string;
+  color?: string;
 }
 
 export function setupWS(server: Server) {
@@ -15,10 +16,10 @@ export function setupWS(server: Server) {
   wss.on("connection", (ws: ExtendedWebSocket) => {
     console.log("New client connected");
 
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const event: WSEvent = JSON.parse(data.toString());
-        handleEvent(ws, event);
+        await handleEvent(ws, event);
       } catch (e) {
         console.error("Failed to parse WS message", e);
       }
@@ -37,7 +38,7 @@ export function setupWS(server: Server) {
     });
   });
 
-  function handleEvent(ws: ExtendedWebSocket, event: WSEvent) {
+  async function handleEvent(ws: ExtendedWebSocket, event: WSEvent) {
     switch (event.type) {
       case "join": {
         const { roomId, name, userId } = event;
@@ -61,34 +62,46 @@ export function setupWS(server: Server) {
         ws.userId = userId || ws.userId || `user_${Math.random().toString(36).substr(2, 9)}`;
         ws.roomId = roomId;
         ws.name = name;
+        ws.color = event.color;
+        (ws as any).avatarUrl = (event as any).avatarUrl;
 
-        let room = roomService.getRoom(roomId);
-        if (!room) {
-          // Create room WITH the requested roomId so others can join using the same code
-          room = roomService.createRoom(ws.userId, name, roomId);
-        } else {
-          roomService.joinRoom(roomId, ws.userId, name);
+        try {
+          let room = roomService.getRoom(roomId);
+          if (!room) {
+            room = roomService.createRoom(ws.userId, name, roomId, event.password, event.color, (event as any).avatarUrl);
+          } else {
+            room = roomService.joinRoom(roomId, ws.userId, name, event.password, event.color, (event as any).avatarUrl);
+          }
+
+          if (!room) {
+             ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found" } }));
+             return;
+          }
+
+          ws.roomId = room.id;
+          
+          // Notify user about current state
+          ws.send(JSON.stringify({ type: "room-state", payload: room }));
+
+          // Notify others in room
+          broadcastToRoom(room.id, {
+            type: "user-joined",
+            payload: { userId: ws.userId, name, room },
+          }, ws.userId);
+        } catch (err: any) {
+          ws.send(JSON.stringify({ type: "error", payload: { message: err.message } }));
+          return;
         }
-
-        ws.roomId = room.id;
-        
-        // Notify user about current state
-        ws.send(JSON.stringify({ type: "room-state", payload: room }));
-
-        // Notify others in room
-        broadcastToRoom(room.id, {
-          type: "user-joined",
-          payload: { userId: ws.userId, name, room },
-        }, ws.userId);
         break;
       }
 
       case "sync": {
         if (!ws.roomId) return;
         const room = roomService.getRoom(ws.roomId);
-        // If locked, only host can sync
-        if (room?.isLocked && room.hostId !== ws.userId) {
-          console.log("Blocked non-host sync in locked room");
+        // Only host/mods can sync if locked
+        const user = room?.users.find((u: any) => u.id === ws.userId);
+        if (room?.isLocked && room.hostId !== ws.userId && user?.role !== "mod") {
+          console.log("Blocked non-host/non-mod sync in locked room");
           return;
         }
         
@@ -118,7 +131,12 @@ export function setupWS(server: Server) {
         if (!ws.roomId) return;
         const chatPayload = {
           type: "chat",
-          payload: { userId: ws.userId, userName: ws.name || "Guest", message: event.message },
+          payload: { 
+            userId: ws.userId, 
+            userName: ws.name || "Guest", 
+            userColor: ws.color,
+            message: event.message 
+          },
         };
         // Broadcast to others
         broadcastToRoom(ws.roomId, chatPayload, ws.userId);
@@ -133,6 +151,45 @@ export function setupWS(server: Server) {
           type: "reaction",
           payload: { userId: ws.userId, emoji: event.emoji },
         });
+        break;
+      }
+
+      case "create-poll": {
+        if (!ws.roomId) return;
+        const room = roomService.createPoll(ws.roomId, event.question, event.options);
+        if (room) {
+          broadcastToRoom(ws.roomId, {
+            type: "room-state",
+            payload: room,
+          });
+        }
+        break;
+      }
+
+      case "vote-poll": {
+        if (!ws.roomId) return;
+        const room = roomService.votePoll(ws.roomId, event.pollId, event.optionIndex, ws.userId);
+        if (room) {
+          broadcastToRoom(ws.roomId, {
+            type: "room-state",
+            payload: room,
+          });
+        }
+        break;
+      }
+
+      case "update-role": {
+        if (!ws.roomId) return;
+        const room = roomService.getRoom(ws.roomId);
+        if (room?.hostId !== ws.userId) return; // Only host can change roles
+
+        const updatedRoom = roomService.updateRole(ws.roomId, (event as any).targetId, (event as any).role);
+        if (updatedRoom) {
+          broadcastToRoom(ws.roomId, {
+            type: "room-state",
+            payload: updatedRoom,
+          });
+        }
         break;
       }
 
