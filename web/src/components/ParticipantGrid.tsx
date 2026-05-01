@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomStore } from '../features/room/RoomStore';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ShieldCheck, Shield, Star } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ParticipantGridProps {
@@ -13,6 +14,7 @@ interface ParticipantGridProps {
 
 export const ParticipantGrid: React.FC<ParticipantGridProps> = ({ streams, send }) => {
   const { users, userId, hostId } = useRoomStore();
+  const isHost = userId === hostId;
 
   const handlePromote = (targetId: string, role: "mod" | "user") => {
     if (send) send({ type: 'update-role', targetId, role });

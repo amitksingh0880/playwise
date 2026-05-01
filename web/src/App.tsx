@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { Polls } from './components/Polls';
 import { VideoPlayer } from './components/VideoPlayer';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 function App() {
   const { roomId, userId, userName, userColor, resetRoom } = useRoomStore();
@@ -295,7 +295,7 @@ function App() {
                     <Button 
                       variant="ghost"
                       size="icon"
-                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${useRoomStore.getState().isLocked ? 'bg-amber-500 text-black border-amber-400' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${useRoomStore.getState().isLocked ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.5)]' : 'bg-white/10 text-white border-white/20 hover:bg-white/20 shadow-lg'}`}
                       onClick={() => send({ type: 'toggle-lock' })}
                     >
                       {useRoomStore.getState().isLocked ? <Lock className="h-5 w-5" /> : <Unlock className="h-5 w-5" />}
@@ -307,20 +307,20 @@ function App() {
                 </Tooltip>
               )}
               
-              <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full px-5 py-2 shadow-inner">
-                <span className="text-[10px] font-black tracking-[0.2em] text-fuchsia-500 uppercase">Room</span>
-                <span className="text-sm font-mono font-bold text-white">
-                  {roomId}
-                </span>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-white/20 text-slate-300 hover:text-white transition-colors ml-2" onClick={handleCopyInvite}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 border-white/10"><p className="font-bold">Copy Invite Link</p></TooltipContent>
-                </Tooltip>
-              </div>
+                <div className="flex items-center gap-2 bg-black/60 border border-white/10 rounded-full px-5 py-2 shadow-inner group">
+                  <span className="text-[10px] font-black tracking-[0.2em] text-fuchsia-400 uppercase animate-pulse">Room</span>
+                  <span className="text-sm font-mono font-bold text-white group-hover:text-cyan-400 transition-colors">
+                    {roomId}
+                  </span>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-white/20 text-slate-400 hover:text-white transition-colors ml-2" onClick={handleCopyInvite}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Copy Invite Link</p></TooltipContent>
+                  </Tooltip>
+                </div>
 
               <div className="flex items-center gap-3">
                 <Tooltip>
@@ -328,13 +328,13 @@ function App() {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isMuted ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isMuted ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/10 text-white border-white/20 hover:bg-white/20 shadow-lg'}`} 
                       onClick={toggleMute}
                     >
                       {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>{isMuted ? "Unmute Mic" : "Mute Mic"}</p></TooltipContent>
+                  <TooltipContent><p>{isMuted ? "Unmute Mic" : "Mute Mic"}</p></TooltipContent>
                 </Tooltip>
 
                 <Tooltip>
@@ -342,35 +342,40 @@ function App() {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isCameraOff ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                      className={`h-11 w-11 rounded-full border transition-all duration-300 ${isCameraOff ? 'bg-rose-500 text-white border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-white/10 text-white border-white/20 hover:bg-white/20 shadow-lg'}`} 
                       onClick={toggleCamera}
                     >
                       {isCameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>{isCameraOff ? "Turn Camera On" : "Turn Camera Off"}</p></TooltipContent>
+                  <TooltipContent><p>{isCameraOff ? "Turn Camera On" : "Turn Camera Off"}</p></TooltipContent>
                 </Tooltip>
               </div>
 
-              <div className="w-[1px] h-8 bg-white/10 mx-2" />
+              <div className="w-[1px] h-8 bg-white/20 mx-2" />
               
               <Tooltip>
                 <TooltipTrigger>
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className={`h-11 w-11 rounded-full border transition-all duration-300 ${theaterMode ? 'bg-fuchsia-600 text-white border-fuchsia-500 shadow-[0_0_20px_rgba(192,38,211,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/20'}`} 
+                    className={`h-11 w-11 rounded-full border transition-all duration-300 ${theaterMode ? 'bg-cyan-500 text-black border-cyan-400 shadow-[0_0_25px_rgba(6,182,212,0.6)]' : 'bg-white/10 text-white border-white/20 hover:bg-white/20 shadow-lg'}`} 
                     onClick={() => setTheaterMode(!theaterMode)}
                   >
                     <Tv className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 border-white/10 font-bold"><p>Theater Mode</p></TooltipContent>
+                <TooltipContent><p>Theater Mode</p></TooltipContent>
               </Tooltip>
 
-              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300" onClick={resetRoom}>
-                <LogOut className="h-5 w-5 ml-1" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 hover:bg-rose-600 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-lg" onClick={resetRoom}>
+                    <LogOut className="h-5 w-5 ml-1" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Leave Session</p></TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </motion.header>

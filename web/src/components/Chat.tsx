@@ -101,16 +101,20 @@ export const Chat: React.FC<{ onSendMessage: (msg: string) => void }> = ({ onSen
           </div>
         </ScrollArea>
 
-        <div className="p-4 bg-slate-950/80 border-t border-white/10 backdrop-blur-3xl">
-          <form onSubmit={handleSubmit} className="flex gap-3">
+        <div className="p-4 bg-black/40 border-t border-white/10">
+          <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1 bg-black/60 border-white/10 focus-visible:ring-cyan-500 rounded-2xl px-5 h-12 text-sm font-medium shadow-inner placeholder:text-slate-600"
+              className="bg-white/5 border-white/10 focus-visible:ring-fuchsia-500 text-white placeholder:text-slate-500 rounded-xl"
             />
-            <Button type="submit" size="icon" className="h-12 w-12 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 text-white shrink-0 shadow-[0_0_20px_rgba(192,38,211,0.4)] border-none transition-all hover:scale-105 active:scale-95">
-              <Send className="w-5 h-5 ml-1" />
+            <Button 
+              type="submit" 
+              size="icon" 
+              className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-xl shadow-[0_0_15px_rgba(192,38,211,0.4)]"
+            >
+              <Send className="h-4 w-4" />
             </Button>
           </form>
         </div>
