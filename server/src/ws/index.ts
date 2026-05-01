@@ -6,6 +6,7 @@ import { Server } from "http";
 interface ExtendedWebSocket extends WebSocket {
   userId: string;
   roomId?: string;
+  name?: string;
 }
 
 export function setupWS(server: Server) {
@@ -59,6 +60,7 @@ export function setupWS(server: Server) {
 
         ws.userId = userId || ws.userId || `user_${Math.random().toString(36).substr(2, 9)}`;
         ws.roomId = roomId;
+        ws.name = name;
 
         let room = roomService.getRoom(roomId);
         if (!room) {
@@ -114,10 +116,14 @@ export function setupWS(server: Server) {
 
       case "chat": {
         if (!ws.roomId) return;
-        broadcastToRoom(ws.roomId, {
+        const chatPayload = {
           type: "chat",
-          payload: { userId: ws.userId, message: event.message },
-        });
+          payload: { userId: ws.userId, userName: ws.name || "Guest", message: event.message },
+        };
+        // Broadcast to others
+        broadcastToRoom(ws.roomId, chatPayload, ws.userId);
+        // Echo back to sender so they see their own message
+        ws.send(JSON.stringify(chatPayload));
         break;
       }
 

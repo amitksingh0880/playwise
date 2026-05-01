@@ -335,8 +335,8 @@ function setupPanelEvents() {
   const doSend = () => {
     const text = input.value.trim();
     if (!text) return;
+    // Don't add locally — server will echo it back to us via PW_CHAT
     chrome.runtime.sendMessage({ type: "SEND_CHAT", message: text });
-    addChatMessage({ id: "me", user: userName, text });
     input.value = "";
   };
   sendBtn.addEventListener("click", doSend);
@@ -419,6 +419,8 @@ function createCamCard(name: string, stream: MediaStream | null, mirror: boolean
     video.muted = mirror;
     if (mirror) video.style.transform = "scaleX(-1)";
     video.srcObject = stream;
+    // Autoplay policy in content scripts requires explicit .play()
+    video.play().catch(() => {});
     card.appendChild(video);
   } else {
     const av = document.createElement("div");
