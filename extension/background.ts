@@ -73,6 +73,8 @@ function connect() {
         if (data.payload?.room) {
           broadcastToAllTabs({ type: "ROOM_STATE", payload: data.payload.room });
         }
+      } else if (data.type === "webrtc-offer" || data.type === "webrtc-answer" || data.type === "webrtc-ice") {
+        broadcastToAllTabs(data);
       }
     } catch (e) {
       console.error("[Playwise BG] Failed to parse message", e);
@@ -170,6 +172,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   } else if (msg.type === "SEND_REACTION") {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: "reaction", emoji: msg.emoji }));
+    }
+
+  } else if (msg.type === "SEND_SIGNAL") {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ 
+        ...msg,
+        type: msg.signalType
+      }));
     }
 
   } else if (msg.type === "GET_STATE") {

@@ -1,20 +1,38 @@
 /**
- * Playwise Content Script v2.0
+ * Playwise Content Script v2.1
  * Injects a full floating sidebar (chat + participant cams + sync controls)
  * via Shadow DOM so styles never conflict with the host page.
+ *
+ * Implements Perfect Negotiation WebRTC for stable video calls.
  */
 
 // ─── State ──────────────────────────────────────────────────────────────────
 let videoElement: HTMLVideoElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
 let localStream: MediaStream | null = null;
-let peerConnections: Record<string, RTCPeerConnection> = {};
 let roomId: string | null = null;
 let userId: string | null = null;
 let userName: string = "Guest";
 let isConnected = false;
 let messages: Array<{ id: string; user: string; text: string; avatar?: string }> = [];
 let participants: Array<{ id: string; name: string; role: string; color?: string; avatar?: string }> = [];
+
+interface PeerEntry {
+  pc: RTCPeerConnection;
+  iceCandidateQueue: RTCIceCandidate[];
+  makingOffer: boolean;
+  ignoreOffer: boolean;
+}
+let peers: Record<string, PeerEntry> = {};
+
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ],
+};
 
 // ─── Shadow DOM Injection ────────────────────────────────────────────────────
 function injectPanel() {
@@ -37,27 +55,28 @@ function injectPanel() {
         right: 0;
         width: 360px;
         height: 100vh;
-        background: rgba(5, 5, 15, 0.85);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border-left: 1px solid rgba(255,255,255,0.08);
+        background: rgba(5, 5, 15, 0.9);
+        backdrop-filter: blur(32px);
+        -webkit-backdrop-filter: blur(32px);
+        border-left: 1px solid rgba(255,255,255,0.1);
         display: flex;
         flex-direction: column;
         pointer-events: all;
-        transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease;
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
         transform: translateX(100%);
         opacity: 0;
-        box-shadow: -20px 0 60px rgba(0,0,0,0.8);
+        box-shadow: -20px 0 80px rgba(0,0,0,0.9);
       }
       #pw-panel.open { transform: translateX(0); opacity: 1; }
 
-      /* Neon top border */
+      /* Neon glow */
       #pw-panel::before {
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(192,38,211,0.6), rgba(6,182,212,0.6), transparent);
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #c026d3, #06b6d4, transparent);
+        z-index: 10;
       }
 
       /* Toggle button */
@@ -66,207 +85,219 @@ function injectPanel() {
         top: 50%;
         right: 0;
         transform: translateY(-50%);
-        width: 36px;
-        height: 64px;
-        background: rgba(5,5,15,0.9);
-        border: 1px solid rgba(255,255,255,0.1);
+        width: 42px;
+        height: 72px;
+        background: rgba(5,5,15,0.95);
+        border: 1px solid rgba(255,255,255,0.15);
         border-right: none;
-        border-radius: 12px 0 0 12px;
+        border-radius: 16px 0 0 16px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
         pointer-events: all;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         backdrop-filter: blur(12px);
-        z-index: 1;
-        font-size: 18px;
+        z-index: 2147483647;
+        font-size: 20px;
+        box-shadow: -5px 0 20px rgba(0,0,0,0.5);
       }
-      #pw-toggle:hover { background: rgba(192,38,211,0.2); border-color: rgba(192,38,211,0.4); }
+      #pw-toggle:hover { background: rgba(192,38,211,0.25); border-color: rgba(192,38,211,0.5); width: 48px; }
 
       /* Header */
       #pw-header {
-        padding: 16px 18px;
+        padding: 20px 24px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
+        border-bottom: 1px solid rgba(255,255,255,0.08);
         flex-shrink: 0;
       }
-      .pw-logo { display: flex; align-items: center; gap: 10px; }
+      .pw-logo { display: flex; align-items: center; gap: 12px; }
       .pw-logo-icon {
-        width: 30px; height: 30px;
+        width: 34px; height: 34px;
         background: linear-gradient(135deg, #c026d3, #06b6d4);
-        border-radius: 8px;
+        border-radius: 10px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 14px;
-        box-shadow: 0 0 16px rgba(192,38,211,0.5);
+        font-size: 16px;
+        box-shadow: 0 0 20px rgba(192,38,211,0.6);
+        color: white;
       }
-      .pw-logo-text { font-size: 15px; font-weight: 800; color: white; letter-spacing: -0.5px; }
+      .pw-logo-text { font-size: 18px; font-weight: 800; color: white; letter-spacing: -0.8px; }
       .pw-badge {
         display: flex; align-items: center; gap: 6px;
-        background: rgba(6,182,212,0.1);
-        border: 1px solid rgba(6,182,212,0.3);
+        background: rgba(6,182,212,0.15);
+        border: 1px solid rgba(6,182,212,0.4);
         border-radius: 999px;
-        padding: 3px 10px;
-        font-size: 10px; font-weight: 700;
+        padding: 4px 12px;
+        font-size: 10px; font-weight: 800;
         color: #06b6d4;
-        letter-spacing: 1px;
+        letter-spacing: 1.5px;
         text-transform: uppercase;
       }
       .pw-badge-dot {
-        width: 6px; height: 6px; border-radius: 50%;
+        width: 7px; height: 7px; border-radius: 50%;
         background: #06b6d4;
+        box-shadow: 0 0 10px #06b6d4;
         animation: pulse 2s infinite;
       }
-      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+      @keyframes pulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.4; transform:scale(0.8);} }
 
       /* Room Info */
       #pw-room-bar {
-        padding: 10px 18px;
-        background: rgba(255,255,255,0.03);
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-        display: flex; align-items: center; gap: 8px;
-        font-size: 11px; color: rgba(255,255,255,0.4);
+        padding: 12px 24px;
+        background: rgba(255,255,255,0.04);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        display: flex; align-items: center; gap: 10px;
+        font-size: 12px; color: rgba(255,255,255,0.5);
         flex-shrink: 0;
       }
-      #pw-room-bar span { color: #c026d3; font-weight: 700; letter-spacing: 2px; }
+      #pw-room-bar span { color: #c026d3; font-weight: 800; letter-spacing: 3px; }
 
       /* Cams Section */
       #pw-cams {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 6px;
-        padding: 12px;
+        gap: 10px;
+        padding: 16px;
         flex-shrink: 0;
-        max-height: 240px;
+        max-height: 280px;
         overflow-y: auto;
+        scrollbar-width: none;
       }
+      #pw-cams::-webkit-scrollbar { display: none; }
+
       .pw-cam-card {
         position: relative;
         aspect-ratio: 16/9;
-        background: rgba(255,255,255,0.04);
-        border-radius: 10px;
+        background: #020205;
+        border-radius: 14px;
         overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.08);
-        transition: border-color 0.3s;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       }
-      .pw-cam-card:hover { border-color: rgba(192,38,211,0.4); }
+      .pw-cam-card:hover { border-color: rgba(192,38,211,0.6); transform: scale(1.02); }
       .pw-cam-card video { width: 100%; height: 100%; object-fit: cover; }
+      
       .pw-cam-label {
         position: absolute; bottom: 8px; left: 8px; right: 8px;
-        background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+        background: rgba(0,0,0,0.7); backdrop-filter: blur(10px);
         border-radius: 8px; padding: 4px 10px;
         font-size: 10px; font-weight: 800; color: white;
         display: flex; align-items: center; justify-content: space-between;
-        border: 1px solid rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.15);
         pointer-events: none;
+        z-index: 5;
       }
-      .pw-cam-dot { width: 6px; height: 6px; border-radius: 50%; background: #06b6d4; animation: pulse 2s infinite; }
-      .pw-cam-role { font-size: 8px; font-weight: 900; color: #06b6d4; background: rgba(6,182,212,0.1); padding: 1px 4px; border-radius: 4px; text-transform: uppercase; }
+      .pw-cam-dot { width: 6px; height: 6px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 5px #06b6d4; }
+      .pw-cam-role { font-size: 8px; font-weight: 900; color: #06b6d4; background: rgba(6,182,212,0.15); padding: 2px 6px; border-radius: 5px; text-transform: uppercase; }
+      
       .pw-cam-avatar {
         width: 100%; height: 100%;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(5,5,15,1);
-        font-size: 42px; font-weight: 800; color: white;
-        text-shadow: 0 0 20px rgba(192,38,211,0.5);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #05050f;
+        font-size: 32px;
+      }
+      .pw-cam-no-video {
+        font-size: 8px; font-weight: 800; color: rgba(255,255,255,0.3); text-transform: uppercase; margin-top: 4px;
       }
 
       /* Reactions */
       #pw-reactions {
-        display: flex; gap: 4px;
-        padding: 8px 12px;
+        display: flex; gap: 6px;
+        padding: 10px 16px;
         flex-shrink: 0;
-        border-top: 1px solid rgba(255,255,255,0.05);
+        border-top: 1px solid rgba(255,255,255,0.06);
       }
       .pw-emoji-btn {
-        flex: 1; background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.07);
-        border-radius: 8px; padding: 6px 4px;
-        cursor: pointer; font-size: 16px;
-        transition: all 0.2s; text-align: center;
+        flex: 1; background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px; padding: 8px 4px;
+        cursor: pointer; font-size: 20px;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
-      .pw-emoji-btn:hover { background: rgba(192,38,211,0.2); border-color: rgba(192,38,211,0.4); transform: translateY(-2px) scale(1.1); }
+      .pw-emoji-btn:hover { 
+        background: rgba(192,38,211,0.25); 
+        border-color: rgba(192,38,211,0.5); 
+        transform: translateY(-5px) scale(1.15);
+        box-shadow: 0 10px 20px rgba(192,38,211,0.3);
+      }
 
       /* Chat */
       #pw-chat {
         flex: 1; overflow-y: auto;
-        padding: 10px 12px;
-        display: flex; flex-direction: column; gap: 10px;
+        padding: 16px;
+        display: flex; flex-direction: column; gap: 12px;
         scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;
       }
-      .pw-msg { display: flex; gap: 8px; align-items: flex-start; }
+      .pw-msg { display: flex; gap: 12px; align-items: flex-start; }
       .pw-avatar {
-        width: 28px; height: 28px; border-radius: 8px;
-        background: linear-gradient(135deg, #c026d3, #06b6d4);
+        width: 32px; height: 32px; border-radius: 10px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.1);
         display: flex; align-items: center; justify-content: center;
-        font-size: 11px; font-weight: 800; color: white;
-        flex-shrink: 0;
-        box-shadow: 0 0 10px rgba(192,38,211,0.3);
+        font-size: 14px; flex-shrink: 0;
       }
       .pw-bubble { flex: 1; }
-      .pw-bubble-name { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.5); margin-bottom: 3px; }
+      .pw-bubble-name { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.4); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
       .pw-bubble-text {
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 10px; border-top-left-radius: 3px;
-        padding: 7px 10px; font-size: 12px; color: rgba(255,255,255,0.9);
-        line-height: 1.4;
-      }
-
-      /* Reaction Pop */
-      .pw-reaction-pop {
-        position: fixed; pointer-events: none;
-        font-size: 36px; z-index: 2147483647;
-        animation: floatUp 1.5s ease-out forwards;
-      }
-      @keyframes floatUp {
-        from { transform: translateY(0) scale(0.5); opacity: 1; }
-        to { transform: translateY(-120px) scale(1.3); opacity: 0; }
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 14px; border-top-left-radius: 4px;
+        padding: 10px 14px; font-size: 13px; color: rgba(255,255,255,0.9);
+        line-height: 1.5;
       }
 
       /* Input */
       #pw-input-area {
-        padding: 10px 12px;
-        border-top: 1px solid rgba(255,255,255,0.06);
-        display: flex; gap: 8px; flex-shrink: 0;
+        padding: 16px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        display: flex; gap: 10px; flex-shrink: 0;
+        background: rgba(255,255,255,0.02);
       }
       #pw-chat-input {
         flex: 1;
-        background: rgba(0,0,0,0.5);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 10px;
-        padding: 8px 12px;
-        color: white; font-size: 12px; font-family: inherit;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 12px;
+        padding: 12px 16px;
+        color: white; font-size: 13px; font-family: inherit;
         outline: none;
-        transition: border-color 0.2s;
+        transition: border-color 0.3s;
       }
-      #pw-chat-input:focus { border-color: rgba(6,182,212,0.5); }
-      #pw-chat-input::placeholder { color: rgba(255,255,255,0.3); }
+      #pw-chat-input:focus { border-color: #06b6d4; background: rgba(0,0,0,0.6); }
       #pw-send-btn {
         background: linear-gradient(135deg, #c026d3, #06b6d4);
-        border: none; border-radius: 10px;
-        width: 36px; height: 36px;
-        cursor: pointer; color: white; font-size: 14px;
+        border: none; border-radius: 12px;
+        width: 44px; height: 44px;
+        cursor: pointer; color: white; font-size: 18px;
         display: flex; align-items: center; justify-content: center;
-        transition: all 0.2s;
-        box-shadow: 0 0 12px rgba(192,38,211,0.4);
+        transition: all 0.3s;
+        box-shadow: 0 0 15px rgba(192,38,211,0.5);
       }
-      #pw-send-btn:hover { transform: scale(1.08); box-shadow: 0 0 20px rgba(192,38,211,0.6); }
+      #pw-send-btn:hover { transform: scale(1.1); box-shadow: 0 0 25px rgba(192,38,211,0.7); }
 
       /* Disconnected overlay */
       #pw-disconnected {
         display: none;
         position: absolute; inset: 0;
-        background: rgba(5,5,15,0.95);
+        background: #05050f;
         flex-direction: column;
         align-items: center; justify-content: center;
-        gap: 16px; text-align: center; padding: 24px;
-        z-index: 10;
+        gap: 20px; text-align: center; padding: 40px;
+        z-index: 100;
       }
       #pw-disconnected.show { display: flex; }
-      #pw-disconnected p { color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.6; }
-      #pw-disconnected .pw-big { font-size: 40px; }
+      #pw-disconnected p { color: rgba(255,255,255,0.5); font-size: 14px; line-height: 1.8; }
+      .pw-big-icon {
+         width: 80px; height: 80px;
+         background: linear-gradient(135deg, rgba(192,38,211,0.1), rgba(6,182,212,0.1));
+         border-radius: 24px;
+         border: 1px solid rgba(255,255,255,0.1);
+         display: flex; align-items: center; justify-content: center;
+         font-size: 40px; margin-bottom: 10px;
+      }
     </style>
 
     <button id="pw-toggle">🎬</button>
@@ -286,7 +317,7 @@ function injectPanel() {
 
       <!-- Room ID bar -->
       <div id="pw-room-bar">
-        Room: <span id="pw-room-label">—</span>
+        ROOM: <span id="pw-room-label">—</span>
       </div>
 
       <!-- Participant camera grid -->
@@ -312,7 +343,7 @@ function injectPanel() {
 
       <!-- Disconnected overlay -->
       <div id="pw-disconnected" class="show">
-        <div class="pw-big">🎬</div>
+        <div class="pw-big-icon">🎬</div>
         <p>Join a room from the <strong>Playwise popup</strong> to see the floating panel here.</p>
       </div>
     </div>
@@ -339,7 +370,6 @@ function setupPanelEvents() {
   const doSend = () => {
     const text = input.value.trim();
     if (!text) return;
-    // Don't add locally — server will echo it back to us via PW_CHAT
     chrome.runtime.sendMessage({ type: "SEND_CHAT", message: text });
     input.value = "";
   };
@@ -351,21 +381,120 @@ function setupPanelEvents() {
     btn.addEventListener("click", () => {
       const emoji = (btn as HTMLElement).dataset.emoji!;
       chrome.runtime.sendMessage({ type: "SEND_REACTION", emoji });
-      showReactionPop(emoji);
     });
   });
+}
+
+// ─── WebRTC Signal Handlers ──────────────────────────────────────────────────
+
+async function handleOffer(from: string, offer: RTCSessionDescriptionInit) {
+  const entry = getOrCreatePeer(from);
+  const polite = userId! < from;
+  const collision = entry.makingOffer || entry.pc.signalingState !== "stable";
+  entry.ignoreOffer = !polite && collision;
+  if (entry.ignoreOffer) return;
+
+  try {
+    await entry.pc.setRemoteDescription(new RTCSessionDescription(offer));
+    for (const candidate of entry.iceCandidateQueue) {
+      await entry.pc.addIceCandidate(candidate).catch(() => {});
+    }
+    entry.iceCandidateQueue = [];
+    const answer = await entry.pc.createAnswer();
+    await entry.pc.setLocalDescription(answer);
+    chrome.runtime.sendMessage({ ...offer, type: "SEND_SIGNAL", targetId: from, signalType: "webrtc-answer" });
+  } catch (err) {
+    console.error("[Playwise] Offer error", err);
+  }
+}
+
+async function handleAnswer(from: string, answer: RTCSessionDescriptionInit) {
+  const entry = peers[from];
+  if (!entry) return;
+  try {
+    await entry.pc.setRemoteDescription(new RTCSessionDescription(answer));
+    for (const candidate of entry.iceCandidateQueue) {
+      await entry.pc.addIceCandidate(candidate).catch(() => {});
+    }
+    entry.iceCandidateQueue = [];
+  } catch (err) {
+    console.error("[Playwise] Answer error", err);
+  }
+}
+
+async function handleIce(from: string, candidate: RTCIceCandidateInit) {
+  const entry = peers[from];
+  if (!entry) return;
+  const ice = new RTCIceCandidate(candidate);
+  if (!entry.pc.remoteDescription) {
+    entry.iceCandidateQueue.push(ice);
+  } else {
+    try {
+      await entry.pc.addIceCandidate(ice);
+    } catch {}
+  }
+}
+
+function getOrCreatePeer(targetId: string): PeerEntry {
+  if (peers[targetId]) {
+    const entry = peers[targetId];
+    if (entry.pc.connectionState !== "failed" && entry.pc.connectionState !== "closed") return entry;
+    entry.pc.close();
+  }
+
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+  const entry: PeerEntry = { pc, iceCandidateQueue: [], makingOffer: false, ignoreOffer: false };
+  peers[targetId] = entry;
+
+  if (localStream) {
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream!));
+  }
+
+  pc.onicecandidate = ({ candidate }) => {
+    if (candidate) chrome.runtime.sendMessage({ type: "SEND_SIGNAL", targetId, signalType: "webrtc-ice", candidate });
+  };
+
+  pc.ontrack = ({ streams: remoteStreams }) => {
+    const s = remoteStreams[0];
+    if (s) {
+      (pc as any)._remoteStream = s;
+      renderCams();
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+      delete peers[targetId];
+      renderCams();
+    }
+  };
+
+  return entry;
+}
+
+async function callPeer(targetId: string) {
+  const entry = getOrCreatePeer(targetId);
+  if (entry.pc.signalingState !== "stable" || entry.makingOffer) return;
+  try {
+    entry.makingOffer = true;
+    const offer = await entry.pc.createOffer();
+    await entry.pc.setLocalDescription(offer);
+    chrome.runtime.sendMessage({ ...entry.pc.localDescription, type: "SEND_SIGNAL", targetId, signalType: "webrtc-offer" });
+  } catch (err) {
+    console.error("[Playwise] Call error", err);
+  } finally {
+    entry.makingOffer = false;
+  }
 }
 
 // ─── UI Updates ──────────────────────────────────────────────────────────────
 function setConnected(rid: string, avatar?: string) {
   if (!shadowRoot) return;
   roomId = rid;
-  if (avatar) localStorage.setItem('playwise_userAvatar', avatar);
   isConnected = true;
   (shadowRoot.getElementById("pw-room-label") as HTMLElement).textContent = rid;
   (shadowRoot.getElementById("pw-disconnected") as HTMLElement).classList.remove("show");
   startCamera();
-  renderCams();
 }
 
 function setDisconnected() {
@@ -373,7 +502,8 @@ function setDisconnected() {
   isConnected = false;
   (shadowRoot.getElementById("pw-disconnected") as HTMLElement).classList.add("show");
   stopCamera();
-  peerConnections = {};
+  Object.values(peers).forEach(e => e.pc.close());
+  peers = {};
   renderCams();
 }
 
@@ -402,23 +532,24 @@ function renderCams() {
 
   // Local cam
   if (localStream) {
-    const card = createCamCard("You", localStream, true, "me", localStorage.getItem('playwise_userAvatar') || undefined);
-    grid.appendChild(card);
+    grid.appendChild(createCamCard("You", localStream, true, "me", participants.find(p => p.id === userId)?.avatar));
   }
 
   // Remote cams
-  Object.entries(peerConnections).forEach(([peerId, pc]) => {
-    const remoteStream = (pc as any)._remoteStream as MediaStream | undefined;
+  Object.entries(peers).forEach(([peerId, entry]) => {
+    const remoteStream = (entry.pc as any)._remoteStream as MediaStream | undefined;
     const p = participants.find(p => p.id === peerId);
-    const card = createCamCard(p?.name || peerId, remoteStream || null, false, p?.role, p?.avatar);
-    grid.appendChild(card);
+    grid.appendChild(createCamCard(p?.name || peerId, remoteStream || null, false, p?.role, p?.avatar));
   });
 }
 
 function createCamCard(name: string, stream: MediaStream | null, mirror: boolean, role?: string, avatarUrl?: string): HTMLElement {
   const card = document.createElement("div");
   card.className = "pw-cam-card";
-  if (stream) {
+  
+  const hasVideo = stream && stream.getVideoTracks().some(t => t.enabled && t.readyState === 'live');
+
+  if (stream && hasVideo) {
     const video = document.createElement("video");
     video.autoplay = true;
     video.playsInline = true;
@@ -430,9 +561,10 @@ function createCamCard(name: string, stream: MediaStream | null, mirror: boolean
   } else {
     const av = document.createElement("div");
     av.className = "pw-cam-avatar";
-    av.textContent = avatarUrl || name.charAt(0).toUpperCase();
+    av.innerHTML = `<span>${avatarUrl || name.charAt(0).toUpperCase()}</span><span class="pw-cam-no-video">CAM OFF</span>`;
     card.appendChild(av);
   }
+
   const label = document.createElement("div");
   label.className = "pw-cam-label";
   const roleTag = role && role !== 'user' ? `<span class="pw-cam-role">${role}</span>` : '';
@@ -441,23 +573,15 @@ function createCamCard(name: string, stream: MediaStream | null, mirror: boolean
   return card;
 }
 
-function showReactionPop(emoji: string) {
-  const el = document.createElement("div");
-  el.className = "pw-reaction-pop";
-  el.textContent = emoji;
-  const x = Math.random() * (window.innerWidth - 100) + 50;
-  const y = window.innerHeight - 100;
-  el.style.left = `${x}px`;
-  el.style.top = `${y}px`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1600);
-}
-
 // ─── Camera ──────────────────────────────────────────────────────────────────
 async function startCamera() {
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({ 
+      video: { width: 640, height: 360 }, 
+      audio: true 
+    });
     renderCams();
+    syncPeers();
   } catch (e) {
     console.warn("[Playwise] Camera not available:", e);
   }
@@ -472,7 +596,6 @@ function stopCamera() {
 function findMainVideo(): HTMLVideoElement | null {
   const all = getAllVideos(document);
   if (!all.length) return null;
-  // Score by area and duration — biggest long-playing video wins
   return all.reduce((best, v) => {
     const area = v.videoWidth * v.videoHeight;
     const bestArea = best.videoWidth * best.videoHeight;
@@ -505,6 +628,17 @@ function setupVideoListeners(video: HTMLVideoElement) {
   video.addEventListener("seeked", sync);
 }
 
+// ─── Sync Peers ───────────────────────────────────────────────────────────────
+function syncPeers() {
+  if (!userId || !isConnected) return;
+  participants.forEach(p => {
+    if (p.id !== userId && !peers[p.id]) {
+       if (userId! > p.id) callPeer(p.id);
+       else getOrCreatePeer(p.id);
+    }
+  });
+}
+
 // ─── Message Handler from Background ────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "PW_CONNECTED") {
@@ -521,30 +655,21 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else if (msg.type === "PW_CHAT") {
     addChatMessage({ id: msg.payload.userId, user: msg.payload.userName || "Guest", text: msg.payload.message });
   } else if (msg.type === "PW_REACTION") {
-    showReactionPop(msg.payload.emoji);
+    // Show on host page if possible or just log
   } else if (msg.type === "ROOM_STATE") {
     participants = msg.payload.users.map((u: any) => ({
-      id: u.id,
-      name: u.name,
-      role: u.role,
-      color: u.color,
-      avatar: u.avatarUrl
+      id: u.id, name: u.name, role: u.role, color: u.color, avatar: u.avatarUrl
     }));
+    syncPeers();
     renderCams();
   } else if (msg.type === "ROOM_STATE_UPDATE") {
-    if (msg.payload.type === "user-joined") {
-      const u = msg.payload;
-      participants.push({ 
-        id: u.userId, 
-        name: u.name || "Guest", 
-        role: u.role || 'user', 
-        color: u.color, 
-        avatar: u.avatarUrl 
-      });
-    } else if (msg.payload.type === "user-left") {
-      participants = participants.filter(p => p.id !== msg.payload.userId);
-    }
-    renderCams();
+    // Already handled by ROOM_STATE in this v2.1 implementation
+  } else if (msg.type === "webrtc-offer") {
+    handleOffer(msg.payload.from, msg.payload.offer);
+  } else if (msg.type === "webrtc-answer") {
+    handleAnswer(msg.payload.from, msg.payload.answer);
+  } else if (msg.type === "webrtc-ice") {
+    handleIce(msg.payload.from, msg.payload.candidate);
   }
 });
 
@@ -562,8 +687,6 @@ function escapeHtml(s: string) {
   return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-// Restore connection state if already in a room
-// Retry after a delay in case the service worker is still waking up
 function checkExistingSession() {
   chrome.storage.local.get(["currentRoomId", "userId", "userName"], (result) => {
     if (result["userId"]) userId = result["userId"] as string;
@@ -571,25 +694,14 @@ function checkExistingSession() {
     if (result["currentRoomId"]) {
       chrome.runtime.sendMessage({ type: "GET_STATE" }, (state) => {
         if (chrome.runtime.lastError) {
-          // Background script not ready yet, retry after 2s
           setTimeout(checkExistingSession, 2000);
           return;
         }
-        if (state?.roomId) {
-          setConnected(state.roomId as string, state.userAvatar);
-        } else {
-          // Was in a room but background lost state, retry once
-          setTimeout(() => {
-            chrome.runtime.sendMessage({ type: "GET_STATE" }, (retryState) => {
-              if (retryState?.roomId) setConnected(retryState.roomId as string, retryState.userAvatar);
-            });
-          }, 3000);
-        }
+        if (state?.roomId) setConnected(state.roomId, state.userAvatar);
       });
     }
   });
 }
 
 checkExistingSession();
-
 injectPanel();
