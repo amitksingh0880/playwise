@@ -152,18 +152,22 @@ function injectPanel() {
       .pw-cam-card:hover { border-color: rgba(192,38,211,0.4); }
       .pw-cam-card video { width: 100%; height: 100%; object-fit: cover; }
       .pw-cam-label {
-        position: absolute; bottom: 5px; left: 5px;
-        background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-        border-radius: 6px; padding: 2px 8px;
-        font-size: 9px; font-weight: 700; color: white;
-        display: flex; align-items: center; gap: 4px;
+        position: absolute; bottom: 8px; left: 8px; right: 8px;
+        background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+        border-radius: 8px; padding: 4px 10px;
+        font-size: 10px; font-weight: 800; color: white;
+        display: flex; align-items: center; justify-content: space-between;
+        border: 1px solid rgba(255,255,255,0.1);
+        pointer-events: none;
       }
-      .pw-cam-dot { width: 5px; height: 5px; border-radius: 50%; background: #06b6d4; animation: pulse 2s infinite; }
+      .pw-cam-dot { width: 6px; height: 6px; border-radius: 50%; background: #06b6d4; animation: pulse 2s infinite; }
+      .pw-cam-role { font-size: 8px; font-weight: 900; color: #06b6d4; background: rgba(6,182,212,0.1); padding: 1px 4px; border-radius: 4px; text-transform: uppercase; }
       .pw-cam-avatar {
         width: 100%; height: 100%;
         display: flex; align-items: center; justify-content: center;
-        background: linear-gradient(135deg, rgba(192,38,211,0.2), rgba(6,182,212,0.2));
-        font-size: 28px; font-weight: 800; color: rgba(192,38,211,0.8);
+        background: rgba(5,5,15,1);
+        font-size: 42px; font-weight: 800; color: white;
+        text-shadow: 0 0 20px rgba(192,38,211,0.5);
       }
 
       /* Reactions */
@@ -347,10 +351,12 @@ function setupPanelEvents() {
     });
 }
 // ─── UI Updates ──────────────────────────────────────────────────────────────
-function setConnected(rid) {
+function setConnected(rid, avatar) {
     if (!shadowRoot)
         return;
     roomId = rid;
+    if (avatar)
+        localStorage.setItem('playwise_userAvatar', avatar);
     isConnected = true;
     shadowRoot.getElementById("pw-room-label").textContent = rid;
     shadowRoot.getElementById("pw-disconnected").classList.remove("show");
@@ -373,8 +379,9 @@ function addChatMessage(msg) {
     const chat = shadowRoot.getElementById("pw-chat");
     const el = document.createElement("div");
     el.className = "pw-msg";
+    const avatar = msg.avatar || msg.user.charAt(0).toUpperCase();
     el.innerHTML = `
-    <div class="pw-avatar">${msg.user.charAt(0).toUpperCase()}</div>
+    <div class="pw-avatar">${avatar}</div>
     <div class="pw-bubble">
       <div class="pw-bubble-name">${msg.user}</div>
       <div class="pw-bubble-text">${escapeHtml(msg.text)}</div>
@@ -390,18 +397,18 @@ function renderCams() {
     grid.innerHTML = "";
     // Local cam
     if (localStream) {
-        const card = createCamCard("You", localStream, true);
+        const card = createCamCard("You", localStream, true, "me", localStorage.getItem('playwise_userAvatar') || undefined);
         grid.appendChild(card);
     }
     // Remote cams
     Object.entries(peerConnections).forEach(([peerId, pc]) => {
         const remoteStream = pc._remoteStream;
-        const peerName = participants.find(p => p.id === peerId)?.name || peerId;
-        const card = createCamCard(peerName, remoteStream || null, false);
+        const p = participants.find(p => p.id === peerId);
+        const card = createCamCard(p?.name || peerId, remoteStream || null, false, p?.role, p?.avatar);
         grid.appendChild(card);
     });
 }
-function createCamCard(name, stream, mirror) {
+function createCamCard(name, stream, mirror, role, avatarUrl) {
     const card = document.createElement("div");
     card.className = "pw-cam-card";
     if (stream) {
@@ -412,19 +419,19 @@ function createCamCard(name, stream, mirror) {
         if (mirror)
             video.style.transform = "scaleX(-1)";
         video.srcObject = stream;
-        // Autoplay policy in content scripts requires explicit .play()
         video.play().catch(() => { });
         card.appendChild(video);
     }
     else {
         const av = document.createElement("div");
         av.className = "pw-cam-avatar";
-        av.textContent = name.charAt(0).toUpperCase();
+        av.textContent = avatarUrl || name.charAt(0).toUpperCase();
         card.appendChild(av);
     }
     const label = document.createElement("div");
     label.className = "pw-cam-label";
-    label.innerHTML = `<span class="pw-cam-dot"></span>${name}`;
+    const roleTag = role && role !== 'user' ? `<span class="pw-cam-role">${role}</span>` : '';
+    label.innerHTML = `<div style="display:flex;align-items:center;gap:6px;"><span class="pw-cam-dot"></span>${name}</div> ${roleTag}`;
     card.appendChild(label);
     return card;
 }
@@ -492,7 +499,7 @@ function setupVideoListeners(video) {
 // ─── Message Handler from Background ────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "PW_CONNECTED") {
-        setConnected(msg.roomId);
+        setConnected(msg.roomId, msg.avatar);
     }
     else if (msg.type === "PW_DISCONNECTED") {
         setDisconnected();
@@ -515,9 +522,26 @@ chrome.runtime.onMessage.addListener((msg) => {
     else if (msg.type === "PW_REACTION") {
         showReactionPop(msg.payload.emoji);
     }
+    else if (msg.type === "ROOM_STATE") {
+        participants = msg.payload.users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            role: u.role,
+            color: u.color,
+            avatar: u.avatarUrl
+        }));
+        renderCams();
+    }
     else if (msg.type === "ROOM_STATE_UPDATE") {
         if (msg.payload.type === "user-joined") {
-            participants.push({ id: msg.payload.userId, name: msg.payload.name || "Guest" });
+            const u = msg.payload;
+            participants.push({
+                id: u.userId,
+                name: u.name || "Guest",
+                role: u.role || 'user',
+                color: u.color,
+                avatar: u.avatarUrl
+            });
         }
         else if (msg.payload.type === "user-left") {
             participants = participants.filter(p => p.id !== msg.payload.userId);
@@ -538,16 +562,35 @@ function escapeHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 // Restore connection state if already in a room
-chrome.storage.local.get(["currentRoomId", "userId", "userName"], (result) => {
-    if (result["userId"])
-        userId = result["userId"];
-    if (result["userName"])
-        userName = result["userName"];
-    if (result["currentRoomId"]) {
-        chrome.runtime.sendMessage({ type: "GET_STATE" }, (state) => {
-            if (state?.roomId)
-                setConnected(state.roomId);
-        });
-    }
-});
+// Retry after a delay in case the service worker is still waking up
+function checkExistingSession() {
+    chrome.storage.local.get(["currentRoomId", "userId", "userName"], (result) => {
+        if (result["userId"])
+            userId = result["userId"];
+        if (result["userName"])
+            userName = result["userName"];
+        if (result["currentRoomId"]) {
+            chrome.runtime.sendMessage({ type: "GET_STATE" }, (state) => {
+                if (chrome.runtime.lastError) {
+                    // Background script not ready yet, retry after 2s
+                    setTimeout(checkExistingSession, 2000);
+                    return;
+                }
+                if (state?.roomId) {
+                    setConnected(state.roomId, state.userAvatar);
+                }
+                else {
+                    // Was in a room but background lost state, retry once
+                    setTimeout(() => {
+                        chrome.runtime.sendMessage({ type: "GET_STATE" }, (retryState) => {
+                            if (retryState?.roomId)
+                                setConnected(retryState.roomId, retryState.userAvatar);
+                        });
+                    }, 3000);
+                }
+            });
+        }
+    });
+}
+checkExistingSession();
 injectPanel();

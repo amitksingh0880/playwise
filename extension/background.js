@@ -1,18 +1,38 @@
 "use strict";
 /**
- * Playwise Background Service Worker v2.0
+ * Playwise Background Service Worker v2.1
  * Manages WebSocket connection, room state, and relays messages between
  * the popup, content scripts, and the Playwise server.
+ *
+ * Key fixes:
+ * - Restores userId from storage on startup (prevents new ID on service worker restart)
+ * - Broadcasts to ALL tabs with the content script, not just the active one
+ * - Sends a fresh room-state to any content script that requests GET_STATE
  */
 const WS_URL = "wss://playwise-4.onrender.com";
 let socket = null;
 let currentRoomId = null;
 let extensionUserId = null;
 let extensionUserName = "Extension User";
+let extensionUserAvatar = "🤖";
 let retryTimeout = null;
 let retryDelay = 3000;
 const MAX_RETRY_DELAY = 30000;
-// --- WebSocket Connection Management ---
+// ─── Restore persisted state on service worker startup ────────────────────────
+chrome.storage.local.get(["currentRoomId", "userId", "userName", "userAvatar"], (result) => {
+    if (result["userId"])
+        extensionUserId = result["userId"];
+    if (result["userName"])
+        extensionUserName = result["userName"];
+    if (result["userAvatar"])
+        extensionUserAvatar = result["userAvatar"];
+    if (result["currentRoomId"]) {
+        currentRoomId = result["currentRoomId"];
+        // Reconnect if we were already in a room
+        connect();
+    }
+});
+// ─── WebSocket Connection Management ─────────────────────────────────────────
 function connect() {
     if (!currentRoomId)
         return;
@@ -28,29 +48,33 @@ function connect() {
                 type: "join",
                 roomId: currentRoomId,
                 userId: extensionUserId,
-                name: extensionUserName
+                name: extensionUserName,
+                avatarUrl: extensionUserAvatar
             }));
         }
-        broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId });
+        broadcastToAllTabs({ type: "PW_CONNECTED", roomId: currentRoomId, avatar: extensionUserAvatar });
     };
     socket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             if (data.type === "sync") {
-                broadcastToContentScript({ type: "UPDATE_VIDEO", state: data.payload });
+                broadcastToAllTabs({ type: "UPDATE_VIDEO", state: data.payload });
             }
             else if (data.type === "room-state") {
-                // Full room state broadcast to content script for UI updates
-                broadcastToContentScript({ type: "ROOM_STATE", payload: data.payload });
+                broadcastToAllTabs({ type: "ROOM_STATE", payload: data.payload });
             }
             else if (data.type === "chat") {
-                broadcastToContentScript({ type: "PW_CHAT", payload: data.payload });
+                broadcastToAllTabs({ type: "PW_CHAT", payload: data.payload });
             }
             else if (data.type === "reaction") {
-                broadcastToContentScript({ type: "PW_REACTION", payload: data.payload });
+                broadcastToAllTabs({ type: "PW_REACTION", payload: data.payload });
             }
             else if (data.type === "user-joined" || data.type === "user-left") {
-                broadcastToContentScript({ type: "ROOM_STATE_UPDATE", payload: data });
+                broadcastToAllTabs({ type: "ROOM_STATE_UPDATE", payload: data.payload });
+                // Also sync the full room state to keep UI up-to-date
+                if (data.payload?.room) {
+                    broadcastToAllTabs({ type: "ROOM_STATE", payload: data.payload.room });
+                }
             }
         }
         catch (e) {
@@ -59,7 +83,7 @@ function connect() {
     };
     socket.onclose = () => {
         console.log(`[Playwise BG] Disconnected. Retrying in ${retryDelay / 1000}s...`);
-        broadcastToContentScript({ type: "PW_DISCONNECTED" });
+        broadcastToAllTabs({ type: "PW_DISCONNECTED" });
         if (currentRoomId) {
             retryTimeout = setTimeout(() => {
                 retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
@@ -71,16 +95,21 @@ function connect() {
         socket?.close();
     };
 }
-function broadcastToContentScript(message) {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-            chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {
-                // Tab may not have content script, ignore silently
-            });
-        }
+// ─── Broadcast to ALL tabs that have the content script ──────────────────────
+// Fix: was previously only sending to the active/focused tab, which meant
+// the video tab would miss messages if the user had switched to another tab.
+function broadcastToAllTabs(message) {
+    chrome.tabs.query({}, (tabs) => {
+        tabs.forEach((tab) => {
+            if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, message).catch(() => {
+                    // Tab may not have content script injected — ignore silently
+                });
+            }
+        });
     });
 }
-// --- Message Handler ---
+// ─── Message Handler ──────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === "JOIN_ROOM") {
         if (retryTimeout) {
@@ -89,14 +118,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         currentRoomId = msg.roomId;
         extensionUserName = msg.name || "Playwise User";
+        extensionUserAvatar = msg.avatar || "🤖";
+        // Generate a stable userId once, persist it
         if (!extensionUserId) {
             extensionUserId = `ext_${Math.random().toString(36).substr(2, 9)}`;
         }
         retryDelay = 3000;
-        chrome.storage.local.set({ currentRoomId: msg.roomId, userName: extensionUserName, userId: extensionUserId });
+        chrome.storage.local.set({
+            currentRoomId: msg.roomId,
+            userName: extensionUserName,
+            userId: extensionUserId,
+            userAvatar: extensionUserAvatar
+        });
         if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "join", roomId: msg.roomId, userId: extensionUserId, name: extensionUserName }));
-            broadcastToContentScript({ type: "PW_CONNECTED", roomId: currentRoomId });
+            socket.send(JSON.stringify({
+                type: "join",
+                roomId: msg.roomId,
+                userId: extensionUserId,
+                name: extensionUserName,
+                avatarUrl: extensionUserAvatar
+            }));
+            broadcastToAllTabs({ type: "PW_CONNECTED", roomId: currentRoomId, avatar: extensionUserAvatar });
         }
         else {
             connect();
@@ -105,14 +147,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
     else if (msg.type === "LEAVE_ROOM") {
         currentRoomId = null;
+        extensionUserId = null; // Reset so fresh ID on next join
         if (retryTimeout) {
             clearTimeout(retryTimeout);
             retryTimeout = null;
         }
         socket?.close();
         socket = null;
-        chrome.storage.local.remove(["currentRoomId"]);
-        broadcastToContentScript({ type: "PW_DISCONNECTED" });
+        chrome.storage.local.remove(["currentRoomId", "userId"]);
+        broadcastToAllTabs({ type: "PW_DISCONNECTED" });
         sendResponse({ ok: true });
     }
     else if (msg.type === "SYNC_STATE") {
@@ -135,6 +178,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             roomId: currentRoomId,
             userId: extensionUserId,
             userName: extensionUserName,
+            userAvatar: extensionUserAvatar,
             connected: socket?.readyState === WebSocket.OPEN
         });
     }

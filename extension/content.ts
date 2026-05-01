@@ -563,14 +563,33 @@ function escapeHtml(s: string) {
 }
 
 // Restore connection state if already in a room
-chrome.storage.local.get(["currentRoomId", "userId", "userName"], (result) => {
-  if (result["userId"]) userId = result["userId"] as string;
-  if (result["userName"]) userName = result["userName"] as string;
-  if (result["currentRoomId"]) {
-    chrome.runtime.sendMessage({ type: "GET_STATE" }, (state) => {
-      if (state?.roomId) setConnected(state.roomId as string);
-    });
-  }
-});
+// Retry after a delay in case the service worker is still waking up
+function checkExistingSession() {
+  chrome.storage.local.get(["currentRoomId", "userId", "userName"], (result) => {
+    if (result["userId"]) userId = result["userId"] as string;
+    if (result["userName"]) userName = result["userName"] as string;
+    if (result["currentRoomId"]) {
+      chrome.runtime.sendMessage({ type: "GET_STATE" }, (state) => {
+        if (chrome.runtime.lastError) {
+          // Background script not ready yet, retry after 2s
+          setTimeout(checkExistingSession, 2000);
+          return;
+        }
+        if (state?.roomId) {
+          setConnected(state.roomId as string, state.userAvatar);
+        } else {
+          // Was in a room but background lost state, retry once
+          setTimeout(() => {
+            chrome.runtime.sendMessage({ type: "GET_STATE" }, (retryState) => {
+              if (retryState?.roomId) setConnected(retryState.roomId as string, retryState.userAvatar);
+            });
+          }, 3000);
+        }
+      });
+    }
+  });
+}
+
+checkExistingSession();
 
 injectPanel();
