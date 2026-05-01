@@ -110,7 +110,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
             enablejsapi: 1,
           },
           events: {
-            onReady: (event: any) => {
+            onReady: () => {
               if (!isMounted) return;
               if (!isHost) {
                 performRobustSync(videoState.currentTime, videoState.isPlaying, videoState.playbackRate, videoState.serverTime);

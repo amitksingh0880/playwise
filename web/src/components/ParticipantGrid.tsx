@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomStore } from '../features/room/RoomStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Star, VideoOff, Wifi, WifiOff } from 'lucide-react';
+import { Star, VideoOff, WifiOff } from 'lucide-react';
 
 interface ParticipantGridProps {
   streams: Record<string, MediaStream>;

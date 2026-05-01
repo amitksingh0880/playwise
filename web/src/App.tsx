@@ -9,8 +9,7 @@ import { useRoomStore } from './features/room/RoomStore';
 import type { VideoState } from './features/room/RoomStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -121,9 +120,9 @@ function App() {
     navigator.clipboard.writeText(url);
   };
 
-  const handleRaiseHand = () => {
-    send({ type: 'reaction', emoji: '✋' });
-  };
+  // const handleRaiseHand = () => {
+  //   send({ type: 'reaction', emoji: '✋' });
+  // };
 
   const handleAddBookmark = () => {
     const { videoState } = useRoomStore.getState();
