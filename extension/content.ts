@@ -648,8 +648,17 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else if (msg.type === "UPDATE_VIDEO") {
     const video = findMainVideo();
     if (!video) return;
-    const { currentTime, isPlaying } = msg.state;
-    if (Math.abs(video.currentTime - currentTime) > 1.5) video.currentTime = currentTime;
+    const { currentTime, isPlaying, serverTime } = msg.state;
+    
+    let targetTime = currentTime;
+    if (serverTime && isPlaying) {
+      const delay = (Date.now() - serverTime) / 1000;
+      targetTime += Math.min(delay, 5); // Cap at 5s
+    }
+
+    const drift = Math.abs(video.currentTime - targetTime);
+    if (drift > 1.5) video.currentTime = targetTime;
+    
     if (isPlaying && video.paused) video.play().catch(() => {});
     else if (!isPlaying && !video.paused) video.pause();
   } else if (msg.type === "PW_CHAT") {

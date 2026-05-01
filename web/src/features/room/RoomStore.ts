@@ -9,6 +9,7 @@ export interface VideoState {
   isPlaying: boolean;
   playbackRate: number;
   lastUpdated: number;
+  serverTime?: number;
 }
 
 export interface User {
@@ -76,16 +77,16 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       return true;
     });
 
-    set({
-      roomId: room.id,
-      hostId: room.hostId,
-      users: uniqueUsers,
-      isLocked: room.isLocked || false,
-      videoState: room.videoState,
-      polls: room.polls || [],
-      isJoined: true,
-    });
-  },
+     set({
+       roomId: room.id,
+       hostId: room.hostId,
+       users: uniqueUsers,
+       isLocked: room.isLocked || false,
+       videoState: { ...room.videoState, serverTime: room.serverTime },
+       polls: room.polls || [],
+       isJoined: true,
+     });
+   },
 
   updateVideoState: (state) => set((prev) => ({
     videoState: { ...prev.videoState, ...state, lastUpdated: Date.now() },

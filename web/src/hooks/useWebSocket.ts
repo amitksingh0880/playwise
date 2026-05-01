@@ -10,14 +10,14 @@ export function useWebSocket() {
   const handleMessage = useCallback((data: any) => {
     switch (data.type) {
       case 'room-state':
-        setRoom(data.payload);
+        setRoom({ ...data.payload, serverTime: data.serverTime });
         break;
       case 'user-joined':
       case 'user-left':
         setRoom(data.payload.room);
         break;
       case 'sync':
-        updateVideoState(data.payload);
+        updateVideoState({ ...data.payload, serverTime: data.serverTime });
         break;
       case "chat":
         window.dispatchEvent(new CustomEvent('playwise-chat', { detail: data.payload }));

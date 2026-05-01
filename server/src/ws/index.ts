@@ -207,10 +207,11 @@ export function setupWS(server: Server) {
   }
 
   function broadcastToRoom(roomId: string, data: any, excludeUserId?: string) {
+    const dataWithTime = { ...data, serverTime: Date.now() };
     wss.clients.forEach((client: any) => {
       if (client.readyState === WebSocket.OPEN && client.roomId === roomId) {
         if (!excludeUserId || client.userId !== excludeUserId) {
-          client.send(JSON.stringify(data));
+          client.send(JSON.stringify(dataWithTime));
         }
       }
     });

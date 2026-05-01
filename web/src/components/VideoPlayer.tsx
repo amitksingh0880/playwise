@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRoomStore } from '../features/room/RoomStore';
 import { Card } from '@/components/ui/card';
-import { Info } from 'lucide-react';
+import { Info, Wifi } from 'lucide-react';
 import Lottie from 'lottie-react';
 import spinAnimation from '../assets/Spin.json';
 import Hls from 'hls.js';
+import { AnimatePresence } from 'framer-motion';
 
 interface VideoPlayerProps {
   onSync: (state: { currentTime: number; isPlaying: boolean; playbackRate?: number }) => void;
@@ -14,12 +15,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
   const { videoState, hostId, userId, isLocked, users } = useRoomStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
+  const lastSyncTime = useRef<number>(0);
   
   const currentUser = users.find(u => u.id === userId);
   const isHost = userId === hostId;
   const isMod = currentUser?.role === 'mod';
   const canControl = isHost || isMod || !isLocked;
+  
   const [localFileLoaded, setLocalFileLoaded] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -29,10 +33,59 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
 
   const showPlaceholder = !videoState.sourceUrl && videoState.sourceType !== 'youtube' && videoState.sourceType !== 'local';
 
-  // YouTube API Initialization
+  // ─── Latency Compensated Seek ──────────────────────────────────────────────
+  const performRobustSync = useCallback((targetTime: number, isPlaying: boolean, playbackRate: number, serverTime?: number) => {
+    let compensatedTime = targetTime;
+    
+    // If we have serverTime, compensate for the network delay
+    if (serverTime && isPlaying) {
+      const delayMs = Date.now() - serverTime;
+      const delaySec = delayMs / 1000;
+      // Cap compensation at 5 seconds to avoid wild jumps on extreme lag
+      compensatedTime += Math.min(delaySec * playbackRate, 5);
+      console.log(`[Sync] Compensating for ${delayMs}ms delay. Target: ${targetTime.toFixed(2)} -> ${compensatedTime.toFixed(2)}`);
+    }
+
+    if (videoState.sourceType === 'youtube' && playerRef.current?.seekTo) {
+      const playerTime = playerRef.current.getCurrentTime();
+      const drift = Math.abs(playerTime - compensatedTime);
+      
+      // Only seek if drift is > 1.2s to prevent constant stutter
+      if (drift > 1.2) {
+        setIsSyncing(true);
+        playerRef.current.seekTo(compensatedTime, true);
+        setTimeout(() => setIsSyncing(false), 1000);
+      }
+      
+      const playerState = playerRef.current.getPlayerState();
+      if (isPlaying && playerState !== 1) playerRef.current.playVideo();
+      else if (!isPlaying && playerState === 1) playerRef.current.pauseVideo();
+      
+      if (Math.abs(playerRef.current.getPlaybackRate() - playbackRate) > 0.01) {
+        playerRef.current.setPlaybackRate(playbackRate);
+      }
+    } else if (videoState.sourceType !== 'youtube' && videoRef.current) {
+      const playerTime = videoRef.current.currentTime;
+      const drift = Math.abs(playerTime - compensatedTime);
+
+      if (drift > 1.0) {
+        setIsSyncing(true);
+        videoRef.current.currentTime = compensatedTime;
+        setTimeout(() => setIsSyncing(false), 1000);
+      }
+      
+      if (isPlaying && videoRef.current.paused) videoRef.current.play().catch(() => {});
+      else if (!isPlaying && !videoRef.current.paused) videoRef.current.pause();
+
+      if (Math.abs(videoRef.current.playbackRate - playbackRate) > 0.01) {
+        videoRef.current.playbackRate = playbackRate;
+      }
+    }
+  }, [videoState.sourceType]);
+
+  // ─── YouTube API Initialization ─────────────────────────────────────────────
   useEffect(() => {
     if (videoState.sourceType !== 'youtube' || showPlaceholder) return;
-
     let isMounted = true;
 
     const initPlayer = () => {
@@ -44,9 +97,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
         if (currentId) playerRef.current.loadVideoById(currentId);
         return;
       }
-
-      const playerElement = document.getElementById('yt-player');
-      if (!playerElement) return;
 
       try {
         playerRef.current = new (window as any).YT.Player('yt-player', {
@@ -63,14 +113,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
             onReady: (event: any) => {
               if (!isMounted) return;
               if (!isHost) {
-                event.target.seekTo(videoState.currentTime, true);
-                if (videoState.isPlaying) event.target.playVideo();
-                else event.target.pauseVideo();
-                event.target.setPlaybackRate(videoState.playbackRate || 1.0);
+                performRobustSync(videoState.currentTime, videoState.isPlaying, videoState.playbackRate, videoState.serverTime);
               }
             },
             onStateChange: (event: any) => {
-              if (canControl && isMounted) {
+              if (canControl && isMounted && !isSyncing) {
                 const isPlaying = event.data === (window as any).YT.PlayerState.PLAYING;
                 onSync({ 
                   currentTime: playerRef.current.getCurrentTime(), 
@@ -78,9 +125,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
                   playbackRate: playerRef.current.getPlaybackRate()
                 });
               }
-            },
-            onError: (err: any) => {
-              console.error('YouTube Player Error:', err);
             }
           },
         });
@@ -106,114 +150,71 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
       }, 100);
       return () => clearInterval(checkInterval);
     }
+    return () => { isMounted = false; };
+  }, [videoState.sourceType, isHost, videoState.sourceUrl, showPlaceholder, canControl, onSync, performRobustSync]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [videoState.sourceType, isHost, videoState.sourceUrl, showPlaceholder]);
-
-  // Periodic sync from host
+  // ─── Heartbeat Sync (Host -> Room) ──────────────────────────────────────────
   useEffect(() => {
     if (!isHost) return;
 
     const interval = setInterval(() => {
-      if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.getCurrentTime === 'function' && playerRef.current.getPlayerState) {
-        const currentTime = playerRef.current.getCurrentTime();
-        onSync({ 
-          currentTime, 
+      let currentState: any = null;
+
+      if (videoState.sourceType === 'youtube' && playerRef.current?.getCurrentTime) {
+        currentState = {
+          currentTime: playerRef.current.getCurrentTime(),
           isPlaying: playerRef.current.getPlayerState() === 1,
           playbackRate: playerRef.current.getPlaybackRate()
-        });
-      } else if (videoState.sourceType !== 'youtube' && videoRef.current) {
-        onSync({ 
-          currentTime: videoRef.current.currentTime, 
+        };
+      } else if (videoRef.current) {
+        currentState = {
+          currentTime: videoRef.current.currentTime,
           isPlaying: !videoRef.current.paused,
           playbackRate: videoRef.current.playbackRate
-        });
+        };
       }
-    }, 3000);
+
+      if (currentState) {
+        // Only broadcast if changed or every 5 seconds as a safety heartbeat
+        const timeSinceLastSync = Date.now() - lastSyncTime.current;
+        if (timeSinceLastSync > 5000) {
+          onSync(currentState);
+          lastSyncTime.current = Date.now();
+        }
+      }
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [isHost, videoState.sourceType, onSync]);
 
-  // Sync YouTube player when videoState changes
+  // ─── Reactive Sync (Room -> Client) ─────────────────────────────────────────
   useEffect(() => {
-    if (videoState.sourceType === 'youtube' && playerRef.current && typeof playerRef.current.seekTo === 'function' && playerRef.current.getPlayerState) {
-      if (!isHost) {
-        const playerTime = playerRef.current.getCurrentTime();
-        const drift = Math.abs(playerTime - videoState.currentTime);
-        if (drift > 2.0) {
-          playerRef.current.seekTo(videoState.currentTime, true);
-        }
-        
-        const playerState = playerRef.current.getPlayerState();
-        if (videoState.isPlaying && playerState !== 1) playerRef.current.playVideo();
-        else if (!videoState.isPlaying && playerState === 1) playerRef.current.pauseVideo();
+    if (isHost) return;
+    performRobustSync(videoState.currentTime, videoState.isPlaying, videoState.playbackRate, videoState.serverTime);
+  }, [videoState.lastUpdated, isHost, performRobustSync]);
 
-        if (Math.abs(playerRef.current.getPlaybackRate() - videoState.playbackRate) > 0.01) {
-          playerRef.current.setPlaybackRate(videoState.playbackRate);
-        }
-      }
-    }
-  }, [videoState, isHost]);
-
-  // Sync HTML5 video player
-  useEffect(() => {
-    if (videoState.sourceType !== 'youtube' && videoRef.current) {
-      if (!isHost) {
-        const drift = Math.abs(videoRef.current.currentTime - videoState.currentTime);
-        if (drift > 1.5) {
-          videoRef.current.currentTime = videoState.currentTime;
-        }
-        if (videoState.isPlaying) videoRef.current.play().catch(() => {});
-        else videoRef.current.pause();
-
-        if (Math.abs(videoRef.current.playbackRate - videoState.playbackRate) > 0.01) {
-          videoRef.current.playbackRate = videoState.playbackRate;
-        }
-      }
-    }
-  }, [videoState, isHost]);
-
-  // Handle URL sources (HLS and standard MP4)
+  // ─── Source Loader ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (videoState.sourceType !== 'url' || !videoState.sourceUrl || !videoRef.current) return;
-    
     let hls: Hls | null = null;
-    
     if (Hls.isSupported() && videoState.sourceUrl.includes('.m3u8')) {
       hls = new Hls();
       hls.loadSource(videoState.sourceUrl);
       hls.attachMedia(videoRef.current);
     } else {
-      // Fallback to native video playback (mp4, webm, or native HLS in Safari)
       videoRef.current.src = videoState.sourceUrl;
     }
-    
-    return () => {
-      if (hls) {
-        hls.destroy();
-      }
-    };
+    return () => { hls?.destroy(); };
   }, [videoState.sourceType, videoState.sourceUrl]);
 
-  const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>, isParticipant = false) => {
+  const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && videoRef.current) {
-      const url = URL.createObjectURL(file);
-      videoRef.current.src = url;
+      videoRef.current.src = URL.createObjectURL(file);
       setLocalFileLoaded(true);
-      if (isHost && !isParticipant) {
-        onSync({ 
-          currentTime: 0, 
-          isPlaying: false,
-          // @ts-ignore
-          localFileName: file.name 
-        });
-      }
-      if (!isHost) {
-        videoRef.current.currentTime = videoState.currentTime;
-        if (videoState.isPlaying) videoRef.current.play().catch(() => {});
+      if (isHost) {
+        onSync({ currentTime: 0, isPlaying: false, playbackRate: 1.0 });
+        useRoomStore.getState().updateVideoState({ ...videoState, sourceType: 'local', currentTime: 0 });
       }
     }
   };
@@ -224,6 +225,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
   return (
     <div className="w-full h-full bg-[#030308] relative overflow-hidden flex items-center justify-center border border-white/5 shadow-inner">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 pointer-events-none" />
+      
+      {/* Sync Status Overlay */}
+      <AnimatePresence>
+        {isSyncing && (
+          <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-fuchsia-600/20 backdrop-blur-md border border-fuchsia-500/50 px-4 py-2 rounded-full shadow-[0_0_20px_rgba(192,38,211,0.3)]">
+            <Wifi className="w-4 h-4 text-fuchsia-400 animate-pulse" />
+            <span className="text-[10px] font-black text-fuchsia-400 uppercase tracking-widest">Syncing...</span>
+          </div>
+        )}
+      </AnimatePresence>
+
       {showPlaceholder ? (
         <div className="flex flex-col items-center justify-center gap-6 h-full relative z-10">
           <div className="w-64 h-64 drop-shadow-[0_0_30px_rgba(6,182,212,0.5)]">
@@ -243,14 +255,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
           ref={videoRef}
           className="w-full h-full object-contain relative z-10 drop-shadow-2xl"
           controls={canControl}
-          onPlay={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true, playbackRate: videoRef.current!.playbackRate })}
-          onPause={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false, playbackRate: videoRef.current!.playbackRate })}
-          onSeeked={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
-          onRateChange={() => canControl && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
+          onPlay={() => canControl && !isSyncing && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: true, playbackRate: videoRef.current!.playbackRate })}
+          onPause={() => canControl && !isSyncing && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: false, playbackRate: videoRef.current!.playbackRate })}
+          onSeeked={() => canControl && !isSyncing && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
+          onRateChange={() => canControl && !isSyncing && onSync({ currentTime: videoRef.current!.currentTime, isPlaying: !videoRef.current!.paused, playbackRate: videoRef.current!.playbackRate })}
         />
       )}
 
-      {/* Participant prompt to load the same local file */}
       {showParticipantPrompt && (
         <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
           <div className="flex flex-col items-center gap-6 max-w-md text-center p-10 bg-slate-950/60 border border-white/10 rounded-[2rem] shadow-[0_0_80px_rgba(6,182,212,0.2)] relative overflow-hidden">
@@ -269,19 +280,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ onSync }) => {
               <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center p-8 gap-3">
                 <span className="text-4xl group-hover:scale-110 transition-transform duration-300">📁</span>
                 <span className="text-sm font-bold text-slate-300 group-hover:text-cyan-400">SELECT LOCAL FILE</span>
-                <input 
-                  type="file" 
-                  accept="video/*" 
-                  className="hidden"
-                  onChange={(e) => handleLocalFile(e, false)}
-                />
+                <input type="file" accept="video/*" className="hidden" onChange={(e) => handleLocalFile(e)} />
               </label>
             </Card>
           </div>
         </div>
       )}
 
-      {/* Host file picker (top-left corner) */}
       {isHost && videoState.sourceType === 'local' && (
         <div className="absolute top-6 left-6 z-30">
           <Card className="bg-slate-950/60 backdrop-blur-xl border border-white/10 p-2.5 shadow-[0_0_30px_rgba(0,0,0,0.8)] rounded-2xl">
